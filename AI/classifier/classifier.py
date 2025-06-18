@@ -32,3 +32,15 @@ def classify_text(request: TextRequest):
             "message": str(e),
             "data": None
         }
+
+def get_toxicity_scores(texts: list[str]) -> list[dict[str, float]]:
+    """
+    Wrapper to apply Detoxify on a batch of texts and return raw scores.
+    
+    Args:
+        texts (list): List of input strings.
+    
+    Returns:
+        list[dict]: List of label→score dicts for each input.
+    """
+    return model.predict(texts) if isinstance(texts, list) else [model.predict(texts)]
