@@ -1,5 +1,0 @@
-fastapi
-uvicorn
-torch>=1.9
-transformers>=4.36
-detoxify
