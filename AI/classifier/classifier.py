@@ -5,11 +5,9 @@ import torch
 
 app = FastAPI(title="ToxicRadar Classifier")
 
-# Usa GPU se disponibile, altrimenti CPU
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = Detoxify('unbiased', device=device)
 
-# Definizione dello schema JSON in input
 class TextRequest(BaseModel):
     text: str
 
@@ -20,6 +18,17 @@ def classify_text(request: TextRequest):
     if not text:
         raise HTTPException(status_code=400, detail="Il testo non può essere vuoto.")
 
-    results = model.predict(text)
-    results_clean = {k: float(v) for k, v in results.items()}
-    return {"labels": results_clean}
+    try:
+        results = model.predict(text)
+        results_clean = {k: float(v) for k, v in results.items()}
+        return {
+            "isSuccess": True,
+            "message": "Classification completed.",
+            "data": results_clean
+        }
+    except Exception as e:
+        return {
+            "isSuccess": False,
+            "message": str(e),
+            "data": None
+        }
