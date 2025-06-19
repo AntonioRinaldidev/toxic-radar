@@ -1,19 +1,70 @@
-# Python
+# === PYTHON ===
 __pycache__/
 *.py[cod]
 *.egg-info/
-.env
+*.pyo
+*.pyd
 *.pth
+*.log
+*.sqlite3
+*.db
+.env
+env/
+.venv/
 venv/
-.env.*
+ENV/
+.ipynb_checkpoints/
 
-# Node.js
+# === NODE/JS/TS ===
 node_modules/
-dist/
-npm-debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+.pnpm-debug.log
 .next/
+dist/
 out/
+*.tsbuildinfo
 
-# OS
+# === FRONTEND specific ===
+frontend/node_modules/
+frontend/package-lock.json
+frontend/.next/
+frontend/out/
+frontend/.eslintcache
+
+# === BACKEND specific ===
+Backend/node_modules/
+Backend/package-lock.json
+Backend/dist/
+
+# === SYSTEM ===
 .DS_Store
 Thumbs.db
+desktop.ini
+*.swp
+*.swo
+
+# === VS CODE ===
+.vscode/
+.history/
+
+# === TESTING ===
+coverage/
+*.cover
+*.lcov
+*.lcov.info
+.cache/
+
+# === MISC ===
+*.bak
+*.tmp
+*.log
+*.orig
+*.rej
+*.gz
+
+# === JUPYTER / NOTEBOOKS ===
+*.ipynb
