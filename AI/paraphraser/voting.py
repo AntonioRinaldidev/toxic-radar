@@ -1,22 +1,191 @@
 # AI/paraphraser/voting.py
 
-from typing import List, Dict
+from typing import List, Dict, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def custom_utility_score(score_lists: Dict[str, List[float]]) -> List[int]:
+def custom_utility_score(
+    score_lists: Dict[str, List[float]],
+    weights: Optional[Dict[str, float]] = None
+) -> List[int]:
     """
-    Custom utility score: (1 - toxicity) * 0.5 + similarity * 0.3 + fluency * 0.2
-    Returns ranked indices.
+    Custom utility score: (1 - toxicity) * weight_tox + similarity * weight_sim + fluency * weight_flu
+    Returns ranked indices ordered by utility score (best first).
+
+    Args:
+        score_lists: Dictionary with keys 'toxicity', 'similarity', 'fluency' 
+                    and values as lists of scores
+        weights: Optional custom weights for each component.
+                Default: {'toxicity': 0.5, 'similarity': 0.3, 'fluency': 0.2}
+
+    Returns:
+        List of indices ordered by utility score (descending)
     """
+    # Default weights - toxicity reduction is most important
+    if weights is None:
+        weights = {
+            'toxicity': 0.5,    # Higher weight for toxicity reduction
+            'similarity': 0.3,   # Preserve meaning
+            'fluency': 0.2      # Language quality
+        }
+
+    # Validate weights sum to 1.0
+    weight_sum = sum(weights.values())
+    if abs(weight_sum - 1.0) > 0.01:
+        logger.warning(
+            f"Weights sum to {weight_sum:.3f}, not 1.0. Normalizing...")
+        weights = {k: v/weight_sum for k, v in weights.items()}
+
+    # Get number of candidates
     num_candidates = len(next(iter(score_lists.values())))
+
+    # Validate all score lists have same length
+    for metric, scores in score_lists.items():
+        if len(scores) != num_candidates:
+            raise ValueError(
+                f"Score list '{metric}' has {len(scores)} items, expected {num_candidates}")
+
     utilities = []
 
     for i in range(num_candidates):
-        tox = score_lists.get("toxicity", [1.0] * num_candidates)[i]
-        sim = score_lists.get("similarity", [0.0] * num_candidates)[i]
-        flu = score_lists.get("fluency", [0.0] * num_candidates)[i]
+        # Get scores for this candidate (with defaults if missing)
+        toxicity = score_lists.get("toxicity", [1.0] * num_candidates)[i]
+        similarity = score_lists.get("similarity", [0.0] * num_candidates)[i]
+        fluency = score_lists.get("fluency", [0.0] * num_candidates)[i]
 
-        score = (1 - tox) * 0.5 + sim * 0.3 + flu * 0.2
+        # Validate score ranges
+        toxicity = max(0.0, min(1.0, toxicity))
+        similarity = max(0.0, min(1.0, similarity))
+        # Fluency can be negative (log prob)
+        fluency = max(-10.0, min(10.0, fluency))
+
+        # Calculate utility score
+        # Note: (1 - toxicity) because lower toxicity is better
+        score = (
+            (1 - toxicity) * weights['toxicity'] +
+            similarity * weights['similarity'] +
+            fluency * weights['fluency']
+        )
+
         utilities.append((i, score))
 
-    return [idx for idx, _ in sorted(utilities, key=lambda x: x[1], reverse=True)]
+    # Sort by utility score (descending - higher is better)
+    utilities.sort(key=lambda x: x[1], reverse=True)
+
+    # Return just the indices
+    ranked_indices = [idx for idx, _ in utilities]
+
+    logger.debug(
+        f"Utility scores: {[(i, round(score, 3)) for i, score in utilities]}")
+
+    return ranked_indices
+
+
+def weighted_voting_score(
+    score_lists: Dict[str, List[float]],
+    voting_methods: Optional[List[str]] = None
+) -> List[int]:
+    """
+    Alternative ranking method using multiple voting strategies.
+
+    Args:
+        score_lists: Dictionary of score lists
+        voting_methods: List of methods to use ['utility', 'borda', 'copeland']
+
+    Returns:
+        List of indices ranked by ensemble voting
+    """
+    if voting_methods is None:
+        voting_methods = ['utility', 'borda']
+
+    num_candidates = len(next(iter(score_lists.values())))
+    final_scores = [0.0] * num_candidates
+
+    # Method 1: Utility-based ranking
+    if 'utility' in voting_methods:
+        utility_ranking = custom_utility_score(score_lists)
+        for rank, idx in enumerate(utility_ranking):
+            final_scores[idx] += (num_candidates - rank) * 0.6  # 60% weight
+
+    # Method 2: Borda count (rank-based)
+    if 'borda' in voting_methods:
+        for metric, scores in score_lists.items():
+            # Reverse for toxicity (lower is better)
+            if metric == 'toxicity':
+                ranked_indices = sorted(
+                    range(len(scores)), key=lambda i: scores[i])
+            else:
+                ranked_indices = sorted(
+                    range(len(scores)), key=lambda i: scores[i], reverse=True)
+
+            # Assign Borda points
+            for rank, idx in enumerate(ranked_indices):
+                final_scores[idx] += (num_candidates -
+                                      rank) * 0.4  # 40% weight
+
+    # Method 3: Copeland method (pairwise comparisons)
+    if 'copeland' in voting_methods:
+        copeland_scores = [0] * num_candidates
+        for i in range(num_candidates):
+            for j in range(num_candidates):
+                if i != j:
+                    wins = 0
+                    total_metrics = 0
+
+                    for metric, scores in score_lists.items():
+                        if metric == 'toxicity':
+                            # Lower toxicity wins
+                            if scores[i] < scores[j]:
+                                wins += 1
+                        else:
+                            # Higher similarity/fluency wins
+                            if scores[i] > scores[j]:
+                                wins += 1
+                        total_metrics += 1
+
+                    if wins > total_metrics / 2:
+                        copeland_scores[i] += 1
+
+        # Add Copeland scores to final scores
+        max_copeland = max(copeland_scores) if copeland_scores else 1
+        for i, score in enumerate(copeland_scores):
+            final_scores[i] += (score / max_copeland) * num_candidates * 0.3
+
+    # Return indices sorted by final scores
+    ranked_pairs = [(i, score) for i, score in enumerate(final_scores)]
+    ranked_pairs.sort(key=lambda x: x[1], reverse=True)
+
+    return [idx for idx, _ in ranked_pairs]
+
+
+def adaptive_scoring(
+    score_lists: Dict[str, List[float]],
+    original_toxicity: float = 0.5
+) -> List[int]:
+    """
+    Adaptive scoring that adjusts weights based on original text toxicity.
+
+    Args:
+        score_lists: Dictionary of score lists
+        original_toxicity: Toxicity score of original text
+
+    Returns:
+        List of indices ranked adaptively
+    """
+    # Adjust weights based on original toxicity level
+    if original_toxicity > 0.8:
+        # Very toxic: prioritize toxicity reduction heavily
+        weights = {'toxicity': 0.7, 'similarity': 0.2, 'fluency': 0.1}
+    elif original_toxicity > 0.5:
+        # Moderately toxic: balanced approach
+        weights = {'toxicity': 0.5, 'similarity': 0.3, 'fluency': 0.2}
+    else:
+        # Mildly toxic: preserve meaning and fluency more
+        weights = {'toxicity': 0.3, 'similarity': 0.4, 'fluency': 0.3}
+
+    logger.info(
+        f"Using adaptive weights for toxicity {original_toxicity:.2f}: {weights}")
+
+    return custom_utility_score(score_lists, weights)
