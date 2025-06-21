@@ -88,15 +88,33 @@ flowchart TD
     Services --> Reasoning[🧮 Reasoning Service<br/>Rule-based refinement]
     Services --> Paraphrasing[📝 Paraphrasing Service<br/>Text generation + ranking]
     Services --> Analysis[🔄 Analysis Service<br/>Pipeline orchestrator]
+    style Start  fill:#ff9999,stroke:#333,stroke-width:3px
+    style SystemDetect fill:#99ccff,stroke:#333,stroke-width:2px
+    style VenvSetup fill:#99ccff,stroke:#333,stroke-width:2px
+    style CoreInit fill:#99ff99,stroke:#333,stroke-width:2px
+    style ModelLoad fill:#99ff99,stroke:#333,stroke-width:2px
+    style Services fill:#99ff99,stroke:#333,stroke-width:2px
+    
 ```
 ### Paraphraser Flow Diagram
 ```mermaid
+flowchart TD
     Paraphrasing --> UserRequest[👤 User Request]
     UserRequest --> Generation[🎯 Text Generation]
     Generation --> Scoring[🔍 Multi-Criteria Scoring]
     Scoring --> Ranking[🏆 Candidate Ranking]
     Ranking --> Response[✨ Final Response]
+    style Paraphrasing fill:#99ff99,stroke:#333,stroke-width:2px
+    style UserRequest fill:#ffcc99,stroke:#333,stroke-width:2px
+    style Generation fill:#cc99ff,stroke:#333,stroke-width:2px
+    style Scorin fill:#cc99ff,stroke:#333,stroke-width:2px
+    style Ranking fill:#cc99ff,stroke:#333,stroke-width:2px
+    style Response fill:#ffff99,stroke:#333,stroke-width:2px
 ```
+    
+
+
+
 ### Processing Pipeline
 
 For each text input, the system:
