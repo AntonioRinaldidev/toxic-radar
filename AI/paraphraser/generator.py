@@ -2,11 +2,11 @@ import re
 from collections import OrderedDict
 from typing import List
 from transformers import pipeline
-from AI.paraphraser.shared_model import (
+from AI.paraphraser._legacy_backup.shared_model import (
     polish_model, polish_tokenizer,
 
 )
-from AI.paraphraser.scorer import score_toxicity,  taunt_equivalence_score
+from AI.paraphraser._legacy_backup.scorer import score_toxicity,  taunt_equivalence_score
 
 # 1) Normalize known slurs so our similarity reference is neutral
 SLUR_MAP = {

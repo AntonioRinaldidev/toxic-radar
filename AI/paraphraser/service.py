@@ -3,9 +3,9 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict
-from AI.paraphraser.voting import custom_utility_score
-from AI.paraphraser.generator import generate_paraphrases
-from AI.paraphraser.scorer import score_toxicity, taunt_equivalence_score, score_fluency
+from AI.paraphraser._legacy_backup.voting import custom_utility_score
+from AI.paraphraser._legacy_backup.generator import generate_paraphrases
+from AI.paraphraser._legacy_backup.scorer import score_toxicity, taunt_equivalence_score, score_fluency
 
 app = FastAPI(title="ToxicRadar Paraphraser")
 

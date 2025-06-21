@@ -3,8 +3,8 @@
 from typing import List, Dict, Tuple
 from AI.classifier.classifier import get_toxicity_scores
 from sentence_transformers import SentenceTransformer, util
-from AI.paraphraser.shared_model import polish_model as fluency_model, polish_tokenizer as fluency_tokenizer
-from AI.paraphraser.voting import custom_utility_score
+from AI.paraphraser._legacy_backup.shared_model import polish_model as fluency_model, polish_tokenizer as fluency_tokenizer
+from AI.paraphraser._legacy_backup.voting import custom_utility_score
 import torch
 import re
 
