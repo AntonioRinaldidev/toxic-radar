@@ -79,31 +79,31 @@ curl "http://localhost:8000/health"
 ```mermaid
 flowchart TD
     Start([🚀 universal_startup.sh]) --> SystemDetect[🔍 System Detection<br/>OS, GPU, Memory Analysis]
-    SystemDetect --> VenvSetup[📦 Environment Setup<br/>Virtual env + Dependencies]
-    VenvSetup --> CoreInit[🧠 Core Initialization<br/>Hardware optimization]
-    CoreInit --> ModelLoad[🤖 Model Loading<br/>T5 + Detoxify models]
-    ModelLoad --> Services{🚀 Services}
+    SystemDetect --> VenvSetup[Environment Setup<br/>Virtual env + Dependencies]
+    VenvSetup --> CoreInit[Core Initialization<br/>Hardware optimization]
+    CoreInit --> ModelLoad[Model Loading<br/>T5 + Detoxify models]
+    ModelLoad --> Services{Services}
     
-    Services --> Classifier[📊 Classification Service<br/>Toxicity detection]
-    Services --> Reasoning[🧮 Reasoning Service<br/>Rule-based refinement]
-    Services --> Paraphrasing[📝 Paraphrasing Service<br/>Text generation + ranking]
-    Services --> Analysis[🔄 Analysis Service<br/>Pipeline orchestrator]
+    Services --> Classifier[Classification Service<br/>Toxicity detection]
+    Services --> Reasoning[Reasoning Service<br/>Rule-based refinement]
+    Services --> Paraphrasing[Paraphrasing Service<br/>Text generation + ranking]
+    Services --> Analysis[Analysis Service<br/>Pipeline orchestrator]
     style Start  fill:#D50000,stroke:#333,stroke-width:3px
     style SystemDetect fill:#99ccff,stroke:#333,stroke-width:2px
     style VenvSetup fill:#99ccff,stroke:#333,stroke-width:2px
-    style CoreInit fill:#99ff99,stroke:#333,stroke-width:2px
-    style ModelLoad fill:#99ff99,stroke:#333,stroke-width:2px
+    style CoreInit fill:#00C853,stroke:#333,stroke-width:2px
+    style ModelLoad fill:#00C853,stroke:#333,stroke-width:2px
     style Services fill:#00C853,stroke:#333,stroke-width:2px
     
 ```
 ### Paraphraser Flow Diagram
 ```mermaid
 flowchart TD
-    Paraphrasing --> UserRequest[👤 User Request]
-    UserRequest --> Generation[🎯 Text Generation]
-    Generation --> Scoring[🔍 Multi-Criteria Scoring]
-    Scoring --> Ranking[🏆 Candidate Ranking]
-    Ranking --> Response[✨ Final Response]
+    Paraphrasing --> UserRequest[User Request]
+    UserRequest --> Generation[Text Generation]
+    Generation --> Scoring[Multi-Criteria Scoring]
+    Scoring --> Ranking[Candidate Ranking]
+    Ranking --> Response[Final Response]
     style Paraphrasing fill:#00C853,stroke:#333,stroke-width:2px
     style UserRequest fill:#ff6D00,stroke:#333,stroke-width:2px
     style Generation fill:#AA00FF,stroke:#333,stroke-width:2px
