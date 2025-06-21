@@ -88,12 +88,12 @@ flowchart TD
     Services --> Reasoning[🧮 Reasoning Service<br/>Rule-based refinement]
     Services --> Paraphrasing[📝 Paraphrasing Service<br/>Text generation + ranking]
     Services --> Analysis[🔄 Analysis Service<br/>Pipeline orchestrator]
-    style Start  fill:#ff9999,stroke:#333,stroke-width:3px
+    style Start  fill:#D50000,stroke:#333,stroke-width:3px
     style SystemDetect fill:#99ccff,stroke:#333,stroke-width:2px
     style VenvSetup fill:#99ccff,stroke:#333,stroke-width:2px
     style CoreInit fill:#99ff99,stroke:#333,stroke-width:2px
     style ModelLoad fill:#99ff99,stroke:#333,stroke-width:2px
-    style Services fill:#99ff99,stroke:#333,stroke-width:2px
+    style Services fill:#00C853,stroke:#333,stroke-width:2px
     
 ```
 ### Paraphraser Flow Diagram
@@ -104,12 +104,12 @@ flowchart TD
     Generation --> Scoring[🔍 Multi-Criteria Scoring]
     Scoring --> Ranking[🏆 Candidate Ranking]
     Ranking --> Response[✨ Final Response]
-    style Paraphrasing fill:#99ff99,stroke:#333,stroke-width:2px
+    style Paraphrasing fill:#00C853,stroke:#333,stroke-width:2px
     style UserRequest fill:#ff6D00,stroke:#333,stroke-width:2px
     style Generation fill:#AA00FF,stroke:#333,stroke-width:2px
     style Scoring fill:#AA00FF,stroke:#333,stroke-width:2px
     style Ranking fill:#AA00FF,stroke:#333,stroke-width:2px
-    style Response fill:#ffff99,stroke:#333,stroke-width:2px
+    style Response fill:#D50000,stroke:#333,stroke-width:2px
 ```
     
 
