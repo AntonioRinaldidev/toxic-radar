@@ -34,7 +34,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "*"] if system_config.os_type == "linux" else ["http://localhost:*"],
+        "*"],
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
@@ -354,6 +354,93 @@ async def paraphrase_batch(request: BatchParaphraseRequest):
         raise HTTPException(
             status_code=500, detail=f"Batch processing error: {str(e)}")
 
+
+@app.post("/paraphrase_advanced")
+async def paraphrase_advanced(
+    text: str,
+    num_candidates: int = 5,
+    mode: str = "auto",
+    enable_reasoning: bool = True,
+    custom_weights: Optional[Dict[str, float]] = None,
+    return_scores: bool = False
+):
+    """
+    Advanced paraphrasing with detailed control and scoring information.
+    """
+    try:
+        # Generate with custom parameters
+        candidates = generate_paraphrases(text, num_candidates, mode=mode)
+
+        if not candidates:
+            raise HTTPException(
+                status_code=422, detail="No valid candidates generated")
+
+        # Score candidates
+        raw_toxicity_scores = score_toxicity(candidates)
+
+        if enable_reasoning:
+            adjusted_results = [apply_reasoning(
+                raw_scores) for raw_scores in raw_toxicity_scores]
+            toxicity_scores = extract_toxicity_scores(adjusted_results)
+            reasoning_explanations = [
+                r.get('explanations', []) for r in adjusted_results]
+        else:
+            toxicity_scores = [r.get('toxicity', 0.0)
+                               for r in raw_toxicity_scores]
+            reasoning_explanations = [[] for _ in candidates]
+
+        similarity_scores = taunt_equivalence_score(text, candidates)
+        fluency_scores = score_fluency(candidates)
+
+        # Custom ranking if weights provided
+        if custom_weights:
+            score_lists = {
+                "toxicity": toxicity_scores,
+                "similarity": similarity_scores,
+                "fluency": fluency_scores
+            }
+            ranking = custom_utility_score(score_lists, custom_weights)
+        else:
+            score_lists = {
+                "toxicity": toxicity_scores,
+                "similarity": similarity_scores,
+                "fluency": fluency_scores
+            }
+            ranking = custom_utility_score(score_lists)
+
+        # Build response
+        response = {
+            "original": text,
+            "candidates": [
+                {
+                    "text": candidates[idx],
+                    "rank": rank + 1,
+                    "scores": {
+                        "toxicity": round(toxicity_scores[idx], 3),
+                        "similarity": round(similarity_scores[idx], 3),
+                        "fluency": round(fluency_scores[idx], 3)
+                    }
+                }
+                for rank, idx in enumerate(ranking)
+            ],
+            "system_info": get_system_metadata()
+        }
+
+        if return_scores:
+            response["detailed_scores"] = {
+                "raw_toxicity_scores": raw_toxicity_scores,
+                "reasoning_explanations": reasoning_explanations,
+                "similarity_scores": similarity_scores,
+                "fluency_scores": fluency_scores
+            }
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Advanced paraphrasing failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # System Information Endpoints
 
 
@@ -472,94 +559,6 @@ async def get_capabilities():
             "auto_cleanup": True
         }
     }
-
-# Advanced Endpoints
-
-
-@app.post("/paraphrase_advanced")
-async def paraphrase_advanced(
-    text: str,
-    num_candidates: int = 5,
-    mode: str = "auto",
-    enable_reasoning: bool = True,
-    custom_weights: Optional[Dict[str, float]] = None,
-    return_scores: bool = False
-):
-    """
-    Advanced paraphrasing with detailed control and scoring information.
-    """
-    try:
-        # Generate with custom parameters
-        candidates = generate_paraphrases(text, num_candidates, mode=mode)
-
-        if not candidates:
-            raise HTTPException(
-                status_code=422, detail="No valid candidates generated")
-
-        # Score candidates
-        raw_toxicity_scores = score_toxicity(candidates)
-
-        if enable_reasoning:
-            adjusted_results = [apply_reasoning(
-                raw_scores) for raw_scores in raw_toxicity_scores]
-            toxicity_scores = extract_toxicity_scores(adjusted_results)
-            reasoning_explanations = [
-                r.get('explanations', []) for r in adjusted_results]
-        else:
-            toxicity_scores = [r.get('toxicity', 0.0)
-                               for r in raw_toxicity_scores]
-            reasoning_explanations = [[] for _ in candidates]
-
-        similarity_scores = taunt_equivalence_score(text, candidates)
-        fluency_scores = score_fluency(candidates)
-
-        # Custom ranking if weights provided
-        if custom_weights:
-            score_lists = {
-                "toxicity": toxicity_scores,
-                "similarity": similarity_scores,
-                "fluency": fluency_scores
-            }
-            ranking = custom_utility_score(score_lists, custom_weights)
-        else:
-            score_lists = {
-                "toxicity": toxicity_scores,
-                "similarity": similarity_scores,
-                "fluency": fluency_scores
-            }
-            ranking = custom_utility_score(score_lists)
-
-        # Build response
-        response = {
-            "original": text,
-            "candidates": [
-                {
-                    "text": candidates[idx],
-                    "rank": rank + 1,
-                    "scores": {
-                        "toxicity": round(toxicity_scores[idx], 3),
-                        "similarity": round(similarity_scores[idx], 3),
-                        "fluency": round(fluency_scores[idx], 3)
-                    }
-                }
-                for rank, idx in enumerate(ranking)
-            ],
-            "system_info": get_system_metadata()
-        }
-
-        if return_scores:
-            response["detailed_scores"] = {
-                "raw_toxicity_scores": raw_toxicity_scores,
-                "reasoning_explanations": reasoning_explanations,
-                "similarity_scores": similarity_scores,
-                "fluency_scores": fluency_scores
-            }
-
-        return response
-
-    except Exception as e:
-        logger.error(f"Advanced paraphrasing failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 # Utility Endpoints
 

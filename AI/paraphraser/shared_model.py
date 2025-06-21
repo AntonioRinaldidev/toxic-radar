@@ -30,7 +30,7 @@ def get_universal_model_config() -> Dict[str, Any]:
             "model_name": "RinaldiDev/flan_paradetox_full",
             "revision": "main",
             "trust_remote_code": False,
-            "use_auth_token": False,
+
         })
 
         # Device-specific model optimizations
@@ -86,7 +86,7 @@ def initialize_universal_model(
             model_config["model_name"],
             cache_dir=model_config["cache_dir"],
             revision=model_config["revision"],
-            use_auth_token=model_config["use_auth_token"],
+
             trust_remote_code=model_config["trust_remote_code"],
             legacy=False
         )
@@ -103,7 +103,7 @@ def initialize_universal_model(
         model_kwargs = {
             "cache_dir": model_config["cache_dir"],
             "revision": model_config["revision"],
-            "use_auth_token": model_config["use_auth_token"],
+
             "trust_remote_code": model_config["trust_remote_code"],
             "low_cpu_mem_usage": model_config["low_cpu_mem_usage"],
         }
