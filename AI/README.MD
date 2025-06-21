@@ -20,12 +20,12 @@ The AI section provides a complete pipeline for processing toxic language throug
 ### 1. Universal Setup
 ```bash
 # Clone and navigate to project
-git clone <your-repo>
+git clone https://github.com/AntonioRinaldidev/toxic-radar.git
 cd ToxicRadar
 
 # Run universal setup (works on any system)
-python3 -m venv venv
-source venv/bin/activate
+# Enter a Virtual Environment for safety
+
 chmod +x AI/universal_startup.sh
 ./AI/universal_startup.sh
 ```
@@ -33,7 +33,7 @@ chmod +x AI/universal_startup.sh
 The setup script automatically:
 - Detects your OS and hardware
 - Creates optimized virtual environment
-- Installs dependencies (PyTorch optimized for your system)
+- Installs dependencies 
 - Tests installation
 - Creates project structure
 
@@ -88,14 +88,15 @@ flowchart TD
     Services --> Reasoning[🧮 Reasoning Service<br/>Rule-based refinement]
     Services --> Paraphrasing[📝 Paraphrasing Service<br/>Text generation + ranking]
     Services --> Analysis[🔄 Analysis Service<br/>Pipeline orchestrator]
-    
+```
+### Paraphraser Flow Diagram
+```mermaid
     Paraphrasing --> UserRequest[👤 User Request]
     UserRequest --> Generation[🎯 Text Generation]
     Generation --> Scoring[🔍 Multi-Criteria Scoring]
     Scoring --> Ranking[🏆 Candidate Ranking]
     Ranking --> Response[✨ Final Response]
 ```
-
 ### Processing Pipeline
 
 For each text input, the system:
