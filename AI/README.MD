@@ -89,11 +89,15 @@ flowchart TD
     Services --> Paraphrasing[Paraphrasing Service<br/>Text generation + ranking]
     Services --> Analysis[Analysis Service<br/>Pipeline orchestrator]
     style Start  fill:#D50000,stroke:#333,stroke-width:3px
-    style SystemDetect fill:#99ccff,stroke:#333,stroke-width:2px
-    style VenvSetup fill:#99ccff,stroke:#333,stroke-width:2px
+    style SystemDetect fill:#2962FF,stroke:#333,stroke-width:2px
+    style VenvSetup fill:#2962FF,stroke:#333,stroke-width:2px
     style CoreInit fill:#00C853,stroke:#333,stroke-width:2px
     style ModelLoad fill:#00C853,stroke:#333,stroke-width:2px
     style Services fill:#00C853,stroke:#333,stroke-width:2px
+    style Classifier fill:#00C853,stroke:#333,stroke-width:2px
+    style Reasoning fill:#00C853,stroke:#333,stroke-width:2px
+    style Paraphrasing fill:#00C853,stroke:#333,stroke-width:2px
+    style Analysis fill:#00C853,stroke:#333,stroke-width:2px
     
 ```
 ### Paraphraser Flow Diagram
