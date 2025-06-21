@@ -314,16 +314,6 @@ The system provides real-time monitoring of:
 
 ## 🔬 Development & Testing
 
-### Running Tests
-
-```bash
-# Install development dependencies
-pip install pytest pytest-asyncio
-
-# Run tests
-pytest AI/tests/
-```
-
 ### Example Usage
 
 ```python
