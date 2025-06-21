@@ -103,6 +103,19 @@ class BatchParaphraseResponse(BaseModel):
     system_info: Dict[str, str]
 
 
+class AnalysisResponse(BaseModel):
+    text: str
+    analysis: Dict[str, Any]
+    metadata: Dict[str, Any]
+    system_info: Dict[str, str]
+
+
+class BatchAnalysisResponse(BaseModel):
+    results: List[AnalysisResponse]
+    batch_metadata: Dict[str, Any]
+    system_info: Dict[str, str]
+
+
 class SystemInfoResponse(BaseModel):
     system_config: Dict[str, Any]
     model_info: Dict[str, Any]
@@ -439,6 +452,197 @@ async def paraphrase_advanced(
     except Exception as e:
         logger.error(f"Advanced paraphrasing failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/analyze", response_model=AnalysisResponse)
+async def analyze_text(request: ParaphraseRequest):
+    """
+    Complete text analysis: Classification + Reasoning (without paraphrasing).
+    Returns toxicity analysis with rule-based adjustments.
+    """
+    start_time = time.time()
+    validate_request(request)
+
+    try:
+        logger.info(f"Analyzing text: '{request.text[:50]}...'")
+
+        # Step 1: Get raw toxicity classification
+        raw_toxicity_scores = score_toxicity([request.text])
+        if not raw_toxicity_scores:
+            raise HTTPException(
+                status_code=422,
+                detail="Unable to classify text toxicity"
+            )
+
+        raw_labels = raw_toxicity_scores[0]
+
+        # Step 2: Apply reasoning rules
+        reasoning_result = apply_reasoning(raw_labels)
+        adjusted_labels = reasoning_result.get('adjusted_labels', raw_labels)
+        explanations = reasoning_result.get('explanations', [])
+
+        # Calculate improvements/changes
+        toxicity_change = raw_labels.get(
+            'toxicity', 0.0) - adjusted_labels.get('toxicity', 0.0)
+
+        processing_time = time.time() - start_time
+
+        analysis_result = {
+            "raw_classification": {
+                label: round(score, 3) for label, score in raw_labels.items()
+            },
+            "adjusted_classification": {
+                label: round(score, 3) for label, score in adjusted_labels.items()
+            },
+            "reasoning_explanations": explanations,
+            "summary": {
+                "is_toxic": adjusted_labels.get('toxicity', 0.0) > 0.5,
+                "toxicity_level": "high" if adjusted_labels.get('toxicity', 0.0) > 0.7
+                else "medium" if adjusted_labels.get('toxicity', 0.0) > 0.3
+                else "low",
+                "main_issues": [
+                    label for label, score in adjusted_labels.items()
+                    if score > 0.5 and label != 'toxicity'
+                ],
+                "reasoning_applied": len(explanations) > 0,
+                "toxicity_adjustment": round(toxicity_change, 3)
+            }
+        }
+
+        metadata = {
+            "processing_time_seconds": round(processing_time, 3),
+            "rules_applied": len(explanations),
+            "analysis_mode": "classification_with_reasoning"
+        }
+
+        logger.info(f"✅ Analysis completed in {processing_time:.2f}s")
+
+        return AnalysisResponse(
+            text=request.text,
+            analysis=analysis_result,
+            metadata=metadata,
+            system_info=get_system_metadata()
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Analysis failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Analysis error: {str(e)}"
+        )
+
+
+@app.post("/analyze_batch", response_model=BatchAnalysisResponse)
+async def analyze_batch(request: BatchParaphraseRequest):
+    """
+    Batch text analysis: Classification + Reasoning for multiple texts.
+    """
+    start_time = time.time()
+
+    if len(request.texts) > api_config["max_batch_size"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Batch size too large. Maximum: {api_config['max_batch_size']}"
+        )
+
+    try:
+        logger.info(f"🔍 Analyzing batch of {len(request.texts)} texts")
+
+        # Step 1: Batch toxicity classification
+        raw_toxicity_batch = score_toxicity(request.texts)
+
+        # Step 2: Apply reasoning to each result
+        analysis_results = []
+        rules_applied_total = 0
+
+        for i, (text, raw_labels) in enumerate(zip(request.texts, raw_toxicity_batch)):
+            try:
+                reasoning_result = apply_reasoning(raw_labels)
+                adjusted_labels = reasoning_result.get(
+                    'adjusted_labels', raw_labels)
+                explanations = reasoning_result.get('explanations', [])
+
+                toxicity_change = raw_labels.get(
+                    'toxicity', 0.0) - adjusted_labels.get('toxicity', 0.0)
+                rules_applied_total += len(explanations)
+
+                analysis_data = {
+                    "raw_classification": {
+                        label: round(score, 3) for label, score in raw_labels.items()
+                    },
+                    "adjusted_classification": {
+                        label: round(score, 3) for label, score in adjusted_labels.items()
+                    },
+                    "reasoning_explanations": explanations,
+                    "summary": {
+                        "is_toxic": adjusted_labels.get('toxicity', 0.0) > 0.5,
+                        "toxicity_level": "high" if adjusted_labels.get('toxicity', 0.0) > 0.7
+                        else "medium" if adjusted_labels.get('toxicity', 0.0) > 0.3
+                        else "low",
+                        "main_issues": [
+                            label for label, score in adjusted_labels.items()
+                            if score > 0.5 and label != 'toxicity'
+                        ],
+                        "reasoning_applied": len(explanations) > 0,
+                        "toxicity_adjustment": round(toxicity_change, 3)
+                    }
+                }
+
+                metadata = {
+                    "rules_applied": len(explanations),
+                    "analysis_mode": "classification_with_reasoning"
+                }
+
+                result = AnalysisResponse(
+                    text=text,
+                    analysis=analysis_data,
+                    metadata=metadata,
+                    system_info=get_system_metadata()
+                )
+                analysis_results.append(result)
+
+            except Exception as e:
+                logger.error(f"❌ Failed to analyze text {i+1}: {e}")
+                # Add error result
+                error_result = AnalysisResponse(
+                    text=text,
+                    analysis={"error": str(e)},
+                    metadata={"error": True},
+                    system_info=get_system_metadata()
+                )
+                analysis_results.append(error_result)
+
+        processing_time = time.time() - start_time
+        successful_analyses = len(
+            [r for r in analysis_results if not r.metadata.get('error')])
+
+        batch_metadata = {
+            "processing_time_seconds": round(processing_time, 3),
+            "total_texts": len(request.texts),
+            "successful_analyses": successful_analyses,
+            "failed_analyses": len(request.texts) - successful_analyses,
+            "total_rules_applied": rules_applied_total,
+            "average_processing_time": round(processing_time / len(request.texts), 3),
+            "analysis_mode": "batch_classification_with_reasoning"
+        }
+
+        logger.info(
+            f"✅ Batch analysis completed: {successful_analyses}/{len(request.texts)} successful")
+
+        return BatchAnalysisResponse(
+            results=analysis_results,
+            batch_metadata=batch_metadata,
+            system_info=get_system_metadata()
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Batch analysis failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch analysis error: {str(e)}"
+        )
 
 
 # System Information Endpoints
