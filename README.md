@@ -4,9 +4,7 @@
 
 ## Project Structure
 - `ai/` – Python microservices for classification, reasoning, paraphrasing
-- `backend/` – Express API gateway
 - `frontend/` – React/Next.js dashboard
-- `data/` – Test datasets and CSV inputs
 
 ## Setup Instructions
 Coming soon...
