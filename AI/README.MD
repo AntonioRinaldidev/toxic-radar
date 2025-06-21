@@ -106,9 +106,9 @@ flowchart TD
     Ranking --> Response[✨ Final Response]
     style Paraphrasing fill:#99ff99,stroke:#333,stroke-width:2px
     style UserRequest fill:#ffcc99,stroke:#333,stroke-width:2px
-    style Generation fill:#cc99ff,stroke:#333,stroke-width:2px
-    style Scorin fill:#cc99ff,stroke:#333,stroke-width:2px
-    style Ranking fill:#cc99ff,stroke:#333,stroke-width:2px
+    style Generation fill:#AA00FF,stroke:#333,stroke-width:2px
+    style Scoring fill:#AA00FF,stroke:#333,stroke-width:2px
+    style Ranking fill:#AA00FF,stroke:#333,stroke-width:2px
     style Response fill:#ffff99,stroke:#333,stroke-width:2px
 ```
     
