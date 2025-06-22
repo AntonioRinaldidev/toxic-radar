@@ -8,7 +8,7 @@ import gc
 from AI.core.system_detector import get_system_config, get_model_config, log_system_info
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 # Global model instances

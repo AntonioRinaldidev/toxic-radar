@@ -9,12 +9,12 @@ import logging
 from AI.paraphraser.voting import custom_utility_score
 from AI.paraphraser.generator import generate_paraphrases, generate_paraphrases_batch
 from AI.paraphraser.scorer import score_toxicity, taunt_equivalence_score, score_fluency
-from AI.reasoning.logic import apply_reasoning
+from AI.reasoning.reasoning import apply_reasoning
 from AI.core.system_detector import get_system_config, get_api_config, log_system_info
 from AI.paraphraser.shared_model import get_model_info, get_model_memory_usage
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 # Get system-optimized API configuration
@@ -54,7 +54,7 @@ class ParaphraseRequest(BaseModel):
         default=None, description="Custom generation parameters")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "text": "You're such an idiot!",
                 "num_candidates": 3,
@@ -73,7 +73,7 @@ class BatchParaphraseRequest(BaseModel):
         default="auto", pattern="^(auto|efficient|quality|universal)$")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "texts": ["You're terrible!", "This is awful!"],
                 "num_candidates_each": 3,
