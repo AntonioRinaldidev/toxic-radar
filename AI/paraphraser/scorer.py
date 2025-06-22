@@ -11,31 +11,6 @@ import re
 # Load Sentence-BERT model
 similarity_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# SLUR_MAP: same as in generator, to clean original before similarity
-SLUR_MAP = {
-    r"\bretard(?:ed)?\b": "person with a different perspective",
-    r"\bfuck(?:ing)?\b": "",
-    r"\bdickhead\b": "unpleasant person",
-    r"\basshole\b": "person being disrespectful",
-}
-
-
-def normalize_reference(text: str) -> str:
-    """
-    Remove slurs and profanity so similarity
-    scoring is based on intent, not hateful tokens.
-
-    Args:
-        text: Text to normalize
-
-    Returns:
-        Normalized text with slurs replaced
-    """
-    cleaned = text
-    for pattern, substitution in SLUR_MAP.items():
-        cleaned = re.sub(pattern, substitution, cleaned, flags=re.IGNORECASE)
-    return re.sub(r"\s{2,}", " ", cleaned).strip()
-
 
 def score_toxicity(candidates: List[str]) -> List[Dict[str, float]]:
     """
@@ -101,8 +76,8 @@ def taunt_equivalence_score(original: str, candidates: List[str]) -> List[float]
     Returns:
         List of similarity scores (0.4-1.0 range)
     """
-    ref = normalize_reference(original)
-    all_sentences = [ref] + candidates
+
+    all_sentences = [original] + candidates
     embeddings = similarity_model.encode(all_sentences, convert_to_tensor=True)
     ref_embedding, candidate_embeddings = embeddings[0], embeddings[1:]
     similarities = util.cos_sim(
