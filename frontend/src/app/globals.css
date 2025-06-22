@@ -1,15 +1,66 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Base Colors (Light Theme) */
+  --background: #f8f8f8; /* Bianco molto soft, quasi grigio chiaro */
+  --foreground: #212121; /* Grigio scuro quasi nero per il testo */
+  
+  /* Primary Brand Color (ViViola - per bottoni, link, accenti principali) */
+  --primary-500: #8a2be2; /* Un bel Viola Bluastro (Blue Violet) */
+  --primary-600: #6a1ac1; /* Una tonalità leggermente più scura del viola */
+  --primary-100: #f3e6ff; /* Viola molto chiaro per sfondi soft */
+  --primary-200: #d7b5f2; /* Viola chiaro intermedio per hover/selezione */
+
+
+  /* Secondary/Accent Color (Arancione - per highlights, secondary actions, avvisi) */
+  --secondary-500: #ffa500; /* Arancione standard */
+  --secondary-600: #cc8400; /* Arancione leggermente più scuro */
+  --secondary-100: #fff4e6; /* Arancione molto chiaro */
+
+  /* Neutral Grays (per bordi, testo secondario, stati disabilitati) */
+  --gray-100: #f0f0f0; /* Grigio molto chiaro, per sfondi elementi */
+  --gray-200: #e0e0e0; /* Grigio chiaro per bordi leggeri */
+  --gray-300: #c2c2c2; /* Grigio medio-chiaro per separatori */
+  --gray-400: #9e9e9e; /* Grigio medio per testo ausiliario */
+  --gray-500: #757575; /* Grigio scuro per testo meno prominente */
+
+  /* Semantic Colors (per alert, messaggi di successo, errori) */
+  --success: #4caf50; /* Verde brillante */
+  --warning: #ffeb3b; /* Giallo (per l'arancione, qui lo rendiamo più giallo per distinzione) */
+  --error: #f44336;   /* Rosso */
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Base Colors (Dark Theme) */
+    --background: #1a1a1a; /* Grigio molto scuro, quasi nero, morbido */
+    --foreground: #f0f0f0; /* Grigio molto chiaro per il testo */
+
+    /* Primary Brand Color (Viola - adjusted for dark theme) */
+    --primary-500: #b366ff; /* Viola leggermente più chiaro e vibrante per contrasto */
+    --primary-600: #9933cc; /* Versione più scura per hover/active */
+    --primary-100: #2c0e4a; /* Viola molto scuro per sfondi soft */
+    --primary-200: #4a286b; /* Viola medio-scuro per hover/selezione */
+
+
+    /* Secondary/Accent Color (Arancione - adjusted for dark theme) */
+    --secondary-500: #ffc14d; /* Arancione leggermente più chiaro per contrasto */
+    --secondary-600: #ff9900; /* Arancione più scuro */
+    --secondary-100: #332200; /* Arancione molto scuro */
+
+    /* Neutral Grays (per bordi, testo secondario, stati disabilitati) */
+    --gray-100: #333333; /* Grigio scuro per sfondi elementi */
+    --gray-200: #424242; /* Grigio leggermente più chiaro per bordi */
+    --gray-300: #616161; /* Grigio medio-scuro per separatori */
+    --gray-400: #a0a0a0; /* Grigio medio per testo ausiliario */
+    --gray-500: #bdbdbd; /* Grigio più chiaro per testo meno prominente */
+
+    /* Semantic Colors (possono rimanere simili o leggermente aggiustati per vivacità) */
+    --success: #66bb6a; /* Verde leggermente più chiaro */
+    --warning: #ffee58; /* Giallo più chiaro */
+    --error: #ef5350;   /* Rosso più chiaro */
   }
 }
 
+/* Existing global styles */
 html,
 body {
   max-width: 100vw;
@@ -19,10 +70,17 @@ body {
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', sans-serif; /* Suggerisco un font moderno. Assicurati di importarlo da Google Fonts o simile */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Aggiunto per coerenza con il nuovo font se lo importi */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', sans-serif;
+    color: var(--foreground);
+}
+
 
 * {
   box-sizing: border-box;
@@ -31,9 +89,134 @@ body {
 }
 
 a {
-  color: inherit;
+  color: var(--primary-500); /* I link useranno il colore primario */
   text-decoration: none;
+  transition: color 0.2s ease-in-out;
 }
+a:hover {
+  color: var(--primary-600);
+  text-decoration: underline;
+}
+
+/* Esempi di stili per componenti comuni */
+button {
+    background-color: var(--primary-500);
+    color: var(--background); /* Testo chiaro sui bottoni primari */
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px; /* Bordi leggermente arrotondati */
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: background-color 0.2s ease-in-out, transform 0.1s ease-out;
+}
+
+button:hover {
+    background-color: var(--primary-600);
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+button:disabled {
+    background-color: var(--gray-300);
+    color: var(--gray-500);
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+/* Bottone secondario con bordo */
+.button-secondary {
+    background-color: transparent;
+    color: var(--primary-500);
+    border: 2px solid var(--primary-500);
+    padding: 10px 22px; /* Leggermente meno padding per il bordo */
+}
+
+.button-secondary:hover {
+    background-color: var(--primary-100); /* Sfondo viola molto chiaro */
+    color: var(--primary-600);
+    border-color: var(--primary-600);
+}
+@media (prefers-color-scheme: dark) {
+    .button-secondary {
+        background-color: transparent;
+        color: var(--primary-500);
+        border: 2px solid var(--primary-500);
+    }
+    .button-secondary:hover {
+        background-color: var(--primary-100);
+        color: var(--primary-600);
+        border-color: var(--primary-600);
+    }
+}
+
+
+input[type="text"],
+textarea {
+    background-color: var(--gray-100); /* Sfondo chiaro per input */
+    color: var(--foreground);
+    border: 1px solid var(--gray-300);
+    padding: 10px 12px;
+    border-radius: 8px;
+    width: 100%;
+    font-size: 16px;
+    transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+input[type="text"]:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 3px var(--primary-100); /* Ombra per focus, usando il viola chiaro */
+}
+
+@media (prefers-color-scheme: dark) {
+    input[type="text"],
+    textarea {
+        background-color: var(--gray-100);
+        border: 1px solid var(--gray-300);
+    }
+    input[type="text"]:focus,
+    textarea:focus {
+        border-color: var(--primary-500);
+        box-shadow: 0 0 0 3px var(--primary-100);
+    }
+}
+
+/* Card/Panel styles */
+.card {
+    background-color: var(--background); /* Sfondo della card, leggermente diverso dal body */
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); /* Ombra leggera */
+    padding: 24px;
+    border: 1px solid var(--gray-200); /* Bordo sottile */
+}
+
+@media (prefers-color-scheme: dark) {
+    .card {
+        background-color: var(--gray-100); /* Sfondo della card nel dark mode */
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--gray-200);
+    }
+}
+
+
+/* Utility classes for text colors */
+.text-primary { color: var(--primary-500); }
+.text-secondary { color: var(--secondary-500); }
+.text-gray { color: var(--gray-500); }
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+.text-error { color: var(--error); }
+
+/* Utility classes for background colors */
+.bg-primary-100 { background-color: var(--primary-100); }
+.bg-secondary-100 { background-color: var(--secondary-100); }
+.bg-gray-100 { background-color: var(--gray-100); }
+
 
 @media (prefers-color-scheme: dark) {
   html {
