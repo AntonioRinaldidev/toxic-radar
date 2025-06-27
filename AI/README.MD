@@ -91,14 +91,14 @@ rm -rf venv
 python3 -m venv venv
 source venv/bin/activate
 ./AI/universal_startup.sh
-
-#GPU Not Detected:
+```
+GPU Not Detected:
 ```bash
 # Check CUDA/MPS availability
 python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
 python -c "import torch; print(f'MPS: {torch.backends.mps.is_available()}')"
 ```
-#Monitoring
+Monitoring
 ```bash
 # Service health with optimization details
 curl "http://localhost:8000/health"
