@@ -180,19 +180,19 @@ ToxicRadar/
 
 ### Core AI Theory Implementation
 
-**🤖 Intelligent Agents** (Chapter 1): Multi-agent PEAS architecture
+**🤖 Intelligent Agents**: Multi-agent PEAS architecture
 - **Classifier Agent**: Toxicity detection with performance optimization
 - **Reasoning Agent**: Soft-CSP constraint satisfaction 
 - **Paraphraser Agent**: Text generation and coordination
 - **System Agent**: Universal hardware adaptation
 
-**🔗 Soft-CSP** (Chapter 4.3): WeightedSemiring `(ℝ⁺, +, ×, 0, 1)` 
+**🔗 Soft-CSP**: WeightedSemiring `(ℝ⁺, +, ×, 0, 1)` 
 - **Variables**: Toxicity dimensions (toxicity, severe_toxicity, threat, etc.)
 - **Constraints**: Cost functions with priorities (consistency=1000, toxicity_target=50)
 - **Algorithm**: Hill Climbing optimization with constraint violation minimization
 - **Semiring Operations**: Cost combination (+) and weight aggregation (×)
 
-**🗳️ Voting Theory** (Chapter 5): Democratic decision making
+**🗳️ Voting Theory**: Democratic decision making
 - **Utility-based Voting**: Weighted scoring (toxicity 50%, similarity 30%, fluency 20%)
 - **Adaptive Voting**: Dynamic weights based on content severity
 - **Ensemble Methods**: Borda count, Copeland pairwise comparisons
@@ -283,28 +283,6 @@ npm run start        # Start production server
 
 # Code quality
 npm run lint         # ESLint code checking
-```
-
-### Key Components (Planned)
-
-```typescript
-// Example component structure
-src/
-├── app/
-│   ├── page.tsx                 # Home dashboard
-│   ├── analyze/page.tsx         # Text analysis interface
-│   ├── batch/page.tsx           # Batch processing
-│   └── settings/page.tsx        # System configuration
-├── components/
-│   ├── ui/                      # Base UI components
-│   ├── TextAnalyzer.tsx         # Main text processing interface
-│   ├── ToxicityChart.tsx        # Visualization components
-│   ├── ParaphraseResults.tsx    # Results display
-│   └── SystemStatus.tsx         # AI backend status
-└── lib/
-    ├── api.ts                   # API client for AI backend
-    ├── types.ts                 # TypeScript type definitions
-    └── utils.ts                 # Utility functions
 ```
 
 ### API Integration
@@ -477,9 +455,7 @@ vercel
 npm run build && npm run start
 ```
 
-## 📝 License
 
-MIT License - see LICENSE file for details.
 
 ## 🤝 Contributing
 
