@@ -269,21 +269,6 @@ The AI system automatically optimizes for your hardware:
 - **📱 Responsive Design**: Mobile-first approach with desktop optimization
 - **🔄 Real-time Updates**: Live processing status and results
 
-### Development
-
-```bash
-cd frontend
-
-# Development server
-npm run dev          # Start at http://localhost:3000
-
-# Production build
-npm run build        # Build for production
-npm run start        # Start production server
-
-# Code quality
-npm run lint         # ESLint code checking
-```
 
 ### API Integration
 
