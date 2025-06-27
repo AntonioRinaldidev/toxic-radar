@@ -306,33 +306,7 @@ class ToxicRadarAPI {
 }
 ```
 
-## 🔧 Development & Testing
-
-### AI Backend Testing
-```bash
-# Test individual components
-python -c "from AI.reasoning.scsp import ToxicitySCSP; print('✅ Soft-CSP OK')"
-python -c "from AI.paraphraser.voting import custom_utility_score; print('✅ Voting OK')"
-
-# Test full pipeline
-curl -X POST "http://localhost:8000/paraphrase" \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Test message", "mode": "efficient"}'
-```
-
-### Frontend Testing
-```bash
-cd frontend
-
-# Type checking
-npx tsc --noEmit
-
-# Component testing (if tests are added)
-npm test
-
-# E2E testing (if configured)
-npm run e2e
-```
+## 🔧 Development 
 
 ### Full Stack Integration
 ```bash
