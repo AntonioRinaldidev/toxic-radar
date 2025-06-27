@@ -4,7 +4,7 @@
 
 The AI section provides a complete pipeline for processing toxic language through:
 - **Classification**: Advanced toxicity detection using Detoxify
-- **Reasoning**: Rule-based logical refinement of toxicity scores  
+- **Reasoning**: Soft-CSP based logical refinement with weighted constraints
 - **Paraphrasing**: Intelligent text rewriting with multi-criteria ranking
 - **Analysis**: Full pipeline orchestration
 
@@ -12,20 +12,24 @@ The AI section provides a complete pipeline for processing toxic language throug
 - 🌍 **Universal Compatibility**: Automatically optimizes for any system (Windows/Linux/macOS, CPU/GPU)
 - ⚡ **Auto-Adaptive Performance**: Adjusts parameters based on hardware capabilities
 - 🏗️ **Microservices Architecture**: Scalable, independent services
-- 🧠 **Advanced Reasoning**: Rule-based toxicity score refinement
+- 🧠 **Soft-CSP Reasoning**: WeightedSemiring optimization with Hill Climbing
 - 🎯 **Multi-Criteria Ranking**: Toxicity + Similarity + Fluency optimization
 
 ## 🚀 Quick Start
 
 ### 1. Universal Setup
 ```bash
-# Clone and navigate to project
-git clone https://github.com/AntonioRinaldidev/toxic-radar.git
+# Clone repository
+git clone https://github.com/AntonioRinaldidev/ToxicRadar.git
 cd ToxicRadar
 
-# Run universal setup (works on any system)
-# Enter a Virtual Environment for safety
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+venv\Scripts\activate     # Windows
 
+# Run universal setup (auto-detects your system)
 chmod +x AI/universal_startup.sh
 ./AI/universal_startup.sh
 ```
@@ -38,6 +42,12 @@ The setup script automatically:
 - Creates project structure
 
 ### 2. Start Services
+
+**Main Service (Recommended):**
+```bash
+# Starts the complete paraphrasing service
+python -m uvicorn AI.paraphraser.service:app --host 0.0.0.0 --port 8000
+```
 
 **Individual Services:**
 ```bash
@@ -54,10 +64,12 @@ python -m uvicorn AI.paraphraser.service:app --host 0.0.0.0 --port 8000
 python -m uvicorn AI.analyze.service:app --host 0.0.0.0 --port 8003
 ```
 
-**Main Service (Recommended):**
+Start Frontend (Optional)
 ```bash
-# Starts the complete paraphrasing service
-python -m uvicorn AI.paraphraser.service:app --host 0.0.0.0 --port 8000
+cd frontend
+npm install
+npm run dev
+# Visit http://localhost:3000
 ```
 
 ### 3. Test the System
@@ -72,6 +84,31 @@ curl -X POST "http://localhost:8000/paraphrase" \
 curl "http://localhost:8000/health"
 ```
 
+Installation Issues:
+```bash
+# Clean reinstall
+rm -rf venv
+python3 -m venv venv
+source venv/bin/activate
+./AI/universal_startup.sh
+```
+GPU Not Detected:
+```bash
+# Check CUDA/MPS availability
+python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
+python -c "import torch; print(f'MPS: {torch.backends.mps.is_available()}')"
+```
+Monitoring
+```bash
+# Service health with optimization details
+curl "http://localhost:8000/health"
+
+# Comprehensive system information
+curl "http://localhost:8000/system_info"
+
+# View processing logs
+tail -f logs/paraphraser.log
+```
 ## 🏗️ Architecture & Flow
 
 ### System Flow Diagram
@@ -148,8 +185,8 @@ AI/
 │   └── service.py                # Test client
 ├── reasoning/
 │   ├── __init__.py
-│   ├── reasoning.py              # Reasoning service
-│   └── logic.py                  # Rule engine
+│   ├── reasoning.py              # Soft-CSP Reasoning service
+│   └── logic.py                  # WeightedSemiring implementation
 ├── paraphraser/
 │   ├── __init__.py
 │   ├── service.py                # Main paraphrasing service
@@ -252,26 +289,54 @@ The system automatically detects and optimizes for:
 
 ## 🧠 Advanced Features
 
-### Rule-Based Reasoning Engine
+###Soft Constraint Satisfaction Problem (Soft-CSP)
+The reasoning engine uses WeightedSemiring optimization:
 
-The reasoning system applies logical constraints to ensure consistency:
 
 ```python
-# Example rules from logic.py
-def identity_attack_rule():
-    return {
-        "condition": lambda labels: labels["identity_attack"] > 0.1 and labels["toxicity"] < 0.5,
-        "action": lambda labels: labels.update({"toxicity": 0.9}),
-        "explanation": "identity_attack > 0.1 → forced toxicity = 0.9"
-    }
+# Example from scsp.py
+class WeightedSemiring:
+    @staticmethod
+    def combine(a: float, b: float) -> float:
+        """Combine operation (⊕): sum of costs"""
+        return a + b
+    
+    @staticmethod  
+    def aggregate(a: float, b: float) -> float:
+        """Aggregate operation (⊗): product of weights"""
+        return a * b
+
+# Constraint example: toxicity should match severity of factors
+def create_toxicity_target_constraint(weight: float = 50.0):
+    def cost_fn(assignment):
+        target_toxicity = (
+            threat * 0.35 +      # Threats are very serious
+            identity * 0.30 +    # Identity attacks are hate speech  
+            severe * 0.20 +      # Severe toxicity has high weight
+            insult * 0.10 +      # Insults are less severe
+            obscene * 0.03       # Obscenity is mild
+        )
+        return (actual_toxicity - target_toxicity) ** 2
 ```
 
 ### Multi-Criteria Ranking
 
-Candidates are ranked using a weighted utility function:
+Candidates ranked using democratic voting principles:
 
 ```python
+# Utility-based voting (primary method)
 utility_score = (1 - toxicity) * 0.5 + similarity * 0.3 + fluency * 0.2
+
+# Adaptive voting based on original content severity
+if original_toxicity > 0.8:
+    weights = {'toxicity': 0.7, 'similarity': 0.2, 'fluency': 0.1}
+elif original_toxicity > 0.5:
+    weights = {'toxicity': 0.5, 'similarity': 0.3, 'fluency': 0.2}
+else:
+    weights = {'toxicity': 0.3, 'similarity': 0.4, 'fluency': 0.3}
+
+# Ensemble voting: Utility + Borda + Copeland methods
+final_ranking = weighted_voting_score(scores, ['utility', 'borda', 'copeland'])
 ```
 
 Alternative ranking methods available:
@@ -384,9 +449,7 @@ Typical performance on different systems:
 | M1 Mac | 5-10s | 2-3s | 8-15s |
 | CPU (16GB) | 10-30s | 3-6s | 15-45s |
 
-## 📝 License
 
-[Your License Here]
 
 ## 🤝 Contributing
 
