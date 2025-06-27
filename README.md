@@ -174,9 +174,6 @@ ToxicRadar/
 │   │   │   └── globals.css         # Global styles
 │   │   └── components/             # React components
 │   └── 🔧 [Other Next.js files]
-│
-├── 🌉 backend/                     # Express.js API Gateway (Optional)
-└── 📈 data/                       # Test datasets and samples
 ```
 
 ## 🧠 AI Backend
