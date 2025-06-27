@@ -9,7 +9,8 @@ from AI.reasoning.scsp import (
     create_toxicity_target_constraint,
     create_severe_toxicity_target_constraint,
     create_insult_target_constraint,
-    create_balance_constraint
+    create_balance_constraint,create_hate_speech_enforcement_constraint,
+    create_hate_speech_severe_constraint
 )
 
 app = FastAPI(title="ToxicRadar Reasoning Module - SCSP Enhanced")
@@ -30,16 +31,21 @@ def get_scsp_instance():
     if _scsp_instance is None:
         _scsp_instance = ToxicitySCSP()
 
-        # Add all target-based constraints
+        # Add all constraints with proper priority (higher weight = higher priority)
         _scsp_instance.add_constraint(
-            create_consistency_constraint(weight=1000))
+            create_consistency_constraint(weight=1000))  # Highest priority
         _scsp_instance.add_constraint(
-            create_toxicity_target_constraint(weight=50))
+            create_hate_speech_enforcement_constraint(weight=150))  # High priority
+        _scsp_instance.add_constraint(
+            create_hate_speech_severe_constraint(weight=80))  #Medium-high priority
+        _scsp_instance.add_constraint(
+            create_toxicity_target_constraint(weight=50))  
         _scsp_instance.add_constraint(
             create_severe_toxicity_target_constraint(weight=30))
         _scsp_instance.add_constraint(
             create_insult_target_constraint(weight=20))
-        _scsp_instance.add_constraint(create_balance_constraint(weight=10))
+        _scsp_instance.add_constraint(
+            create_balance_constraint(weight=10))
 
     return _scsp_instance
 

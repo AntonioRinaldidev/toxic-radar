@@ -134,10 +134,9 @@ class ToxicitySCSP:
 def create_toxicity_target_constraint(weight: float = 50.0) -> WeightedConstraint:
     """
     Toxicity should be proportional to weighted combination of all factors.
-    This naturally handles both increases and decreases.
+    UPDATED: Better weights for hate speech detection.
     """
     def cost_fn(assignment: Dict[str, float]) -> float:
-        # Get all factor scores
         threat = assignment.get('threat', 0.0)
         identity = assignment.get('identity_attack', 0.0)
         insult = assignment.get('insult', 0.0)
@@ -145,33 +144,45 @@ def create_toxicity_target_constraint(weight: float = 50.0) -> WeightedConstrain
         sexual = assignment.get('sexual_explicit', 0.0)
         severe = assignment.get('severe_toxicity', 0.0)
 
-        # Calculate target toxicity using weighted average
-        # Weights reflect severity: threat and identity_attack are most important
-        target_toxicity = (
-            threat * 0.35 +           # Threats are very serious
-            identity * 0.30 +         # Identity attacks are hate speech
-            severe * 0.20 +           # Severe toxicity has high weight
-            insult * 0.10 +           # Insults are less severe
-            obscene * 0.03 +          # Obscenity is mild
-            sexual * 0.02             # Sexual content is least toxic by itself
-        )
+        # NEW: Detect hate speech context
+        is_hate_speech = identity > 0.7 or (identity > 0.5 and insult > 0.8)
+        
+        if is_hate_speech:
+            # Weights for hate speech - identity attack is primary factor
+            target_toxicity = (
+                threat * 0.25 +           # Threats
+                identity * 0.45 +         # HATE SPEECH - main weight!  
+                severe * 0.15 +           # Severe toxicity
+                insult * 0.10 +           # Insults
+                obscene * 0.03 +          # Obscenity is minor
+                sexual * 0.02             # Sexual content is minor
+            )
+            # Ensure minimum toxicity for hate speech
+            target_toxicity = max(target_toxicity, 0.85)
+        else:
+            # Original weights for normal toxic content
+            target_toxicity = (
+                threat * 0.35 +           # Threats are very serious
+                identity * 0.30 +         # Identity attacks
+                severe * 0.20 +           # Severe toxicity
+                insult * 0.10 +           # Insults are less severe
+                obscene * 0.03 +          # Obscenity is mild
+                sexual * 0.02             # Sexual content is least toxic
+            )
 
-        # Ensure target is within reasonable bounds
+        # Ensure target is within bounds
         target_toxicity = max(0.1, min(0.95, target_toxicity))
-
         actual_toxicity = assignment.get('toxicity', 0.0)
 
-        # Cost is squared difference from target (penalizes both over and under)
         return (actual_toxicity - target_toxicity) ** 2
 
     return WeightedConstraint(
-        name="toxicity_target_proportional",
+        name="toxicity_target_adaptive",
         variables=['threat', 'identity_attack', 'insult', 'obscene',
                    'sexual_explicit', 'severe_toxicity', 'toxicity'],
         cost_function=cost_fn,
         weight=weight
     )
-
 
 def create_severe_toxicity_target_constraint(weight: float = 30.0) -> WeightedConstraint:
     """
@@ -335,9 +346,80 @@ def create_consistency_constraint(weight: float = 1000.0) -> WeightedConstraint:
             return (severe - general) ** 2
         return 0.0
 
+
+
     return WeightedConstraint(
         name="severe_toxicity_consistency",
         variables=['severe_toxicity', 'toxicity'],
+        cost_function=cost_fn,
+        weight=weight
+    )
+
+def create_hate_speech_enforcement_constraint(weight: float = 150.0) -> WeightedConstraint:
+    """
+    Enforce high toxicity for hate speech content.
+    Identity attacks should result in very high toxicity scores.
+    """
+    def cost_fn(assignment: Dict[str, float]) -> float:
+        identity = assignment.get('identity_attack', 0.0)
+        toxicity = assignment.get('toxicity', 0.0)
+        insult = assignment.get('insult', 0.0)
+        
+        cost = 0.0
+        
+        # Severe hate speech (identity > 80%)
+        if identity > 0.8:
+            required_toxicity = 0.92  # Must be at least 92%
+            if toxicity < required_toxicity:
+                cost += (required_toxicity - toxicity) ** 2 * 8
+                
+        # Moderate hate speech (identity > 60%)
+        elif identity > 0.6:
+            required_toxicity = 0.85  # Must be at least 85%
+            if toxicity < required_toxicity:
+                cost += (required_toxicity - toxicity) ** 2 * 5
+                
+        # Combined hate speech + insult (very toxic combination)
+        if identity > 0.7 and insult > 0.8:
+            required_toxicity = 0.95  # Must be at least 95%
+            if toxicity < required_toxicity:
+                cost += (required_toxicity - toxicity) ** 2 * 10
+        
+        return cost
+
+    return WeightedConstraint(
+        name="hate_speech_enforcement",
+        variables=['identity_attack', 'toxicity', 'insult'],
+        cost_function=cost_fn,
+        weight=weight
+    )
+
+def create_hate_speech_severe_constraint(weight: float = 80.0) -> WeightedConstraint:
+    """
+    For hate speech, severe toxicity should be higher.
+    """
+    def cost_fn(assignment: Dict[str, float]) -> float:
+        identity = assignment.get('identity_attack', 0.0)
+        severe = assignment.get('severe_toxicity', 0.0)
+        insult = assignment.get('insult', 0.0)
+        
+        # If it's hate speech, severe toxicity should be significant
+        if identity > 0.7:
+            min_severe = 0.6  # At least 60% severe toxicity
+            if severe < min_severe:
+                return (min_severe - severe) ** 2 * 3
+                
+        # Combined identity + insult should have high severe toxicity  
+        if identity > 0.5 and insult > 0.8:
+            min_severe = 0.7  # At least 70% severe toxicity
+            if severe < min_severe:
+                return (min_severe - severe) ** 2 * 4
+        
+        return 0.0
+
+    return WeightedConstraint(
+        name="hate_speech_severe_toxicity",
+        variables=['identity_attack', 'severe_toxicity', 'insult'],
         cost_function=cost_fn,
         weight=weight
     )
