@@ -321,10 +321,22 @@ def create_toxicity_target_constraint(weight: float = 50.0):
 
 ### Multi-Criteria Ranking
 
-Candidates are ranked using a weighted utility function:
+Candidates ranked using democratic voting principles:
 
 ```python
+# Utility-based voting (primary method)
 utility_score = (1 - toxicity) * 0.5 + similarity * 0.3 + fluency * 0.2
+
+# Adaptive voting based on original content severity
+if original_toxicity > 0.8:
+    weights = {'toxicity': 0.7, 'similarity': 0.2, 'fluency': 0.1}
+elif original_toxicity > 0.5:
+    weights = {'toxicity': 0.5, 'similarity': 0.3, 'fluency': 0.2}
+else:
+    weights = {'toxicity': 0.3, 'similarity': 0.4, 'fluency': 0.3}
+
+# Ensemble voting: Utility + Borda + Copeland methods
+final_ranking = weighted_voting_score(scores, ['utility', 'borda', 'copeland'])
 ```
 
 Alternative ranking methods available:
@@ -437,9 +449,7 @@ Typical performance on different systems:
 | M1 Mac | 5-10s | 2-3s | 8-15s |
 | CPU (16GB) | 10-30s | 3-6s | 15-45s |
 
-## 📝 License
 
-[Your License Here]
 
 ## 🤝 Contributing
 
