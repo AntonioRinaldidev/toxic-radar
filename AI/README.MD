@@ -185,8 +185,8 @@ AI/
 │   └── service.py                # Test client
 ├── reasoning/
 │   ├── __init__.py
-│   ├── reasoning.py              # Reasoning service
-│   └── logic.py                  # Rule engine
+│   ├── reasoning.py              # Soft-CSP Reasoning service
+│   └── logic.py                  # WeightedSemiring implementation
 ├── paraphraser/
 │   ├── __init__.py
 │   ├── service.py                # Main paraphrasing service
@@ -289,18 +289,34 @@ The system automatically detects and optimizes for:
 
 ## 🧠 Advanced Features
 
-### Rule-Based Reasoning Engine
+###Soft Constraint Satisfaction Problem (Soft-CSP)
+The reasoning engine uses WeightedSemiring optimization:
 
-The reasoning system applies logical constraints to ensure consistency:
 
 ```python
-# Example rules from logic.py
-def identity_attack_rule():
-    return {
-        "condition": lambda labels: labels["identity_attack"] > 0.1 and labels["toxicity"] < 0.5,
-        "action": lambda labels: labels.update({"toxicity": 0.9}),
-        "explanation": "identity_attack > 0.1 → forced toxicity = 0.9"
-    }
+# Example from scsp.py
+class WeightedSemiring:
+    @staticmethod
+    def combine(a: float, b: float) -> float:
+        """Combine operation (⊕): sum of costs"""
+        return a + b
+    
+    @staticmethod  
+    def aggregate(a: float, b: float) -> float:
+        """Aggregate operation (⊗): product of weights"""
+        return a * b
+
+# Constraint example: toxicity should match severity of factors
+def create_toxicity_target_constraint(weight: float = 50.0):
+    def cost_fn(assignment):
+        target_toxicity = (
+            threat * 0.35 +      # Threats are very serious
+            identity * 0.30 +    # Identity attacks are hate speech  
+            severe * 0.20 +      # Severe toxicity has high weight
+            insult * 0.10 +      # Insults are less severe
+            obscene * 0.03       # Obscenity is mild
+        )
+        return (actual_toxicity - target_toxicity) ** 2
 ```
 
 ### Multi-Criteria Ranking
