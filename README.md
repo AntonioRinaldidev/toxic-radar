@@ -195,7 +195,7 @@ ToxicRadar/
 **🗳️ Voting Theory**: Democratic decision making
 - **Utility-based Voting**: Weighted scoring (toxicity 50%, similarity 30%, fluency 20%)
 - **Adaptive Voting**: Dynamic weights based on content severity
-- **Ensemble Methods**: Borda count, Copeland pairwise comparisons
+
 
 ### Services & APIs
 
