@@ -146,12 +146,12 @@ def create_toxicity_target_constraint(weight: float = 50.0) -> WeightedConstrain
 
         # NEW: Detect hate speech context
         is_hate_speech = identity > 0.7 or (identity > 0.5 and insult > 0.8)
-        
+
         if is_hate_speech:
             # Weights for hate speech - identity attack is primary factor
             target_toxicity = (
                 threat * 0.25 +           # Threats
-                identity * 0.45 +         # HATE SPEECH - main weight!  
+                identity * 0.45 +         # HATE SPEECH - main weight!
                 severe * 0.15 +           # Severe toxicity
                 insult * 0.10 +           # Insults
                 obscene * 0.03 +          # Obscenity is minor
@@ -183,6 +183,7 @@ def create_toxicity_target_constraint(weight: float = 50.0) -> WeightedConstrain
         cost_function=cost_fn,
         weight=weight
     )
+
 
 def create_severe_toxicity_target_constraint(weight: float = 30.0) -> WeightedConstraint:
     """
@@ -346,14 +347,13 @@ def create_consistency_constraint(weight: float = 1000.0) -> WeightedConstraint:
             return (severe - general) ** 2
         return 0.0
 
-
-
     return WeightedConstraint(
         name="severe_toxicity_consistency",
         variables=['severe_toxicity', 'toxicity'],
         cost_function=cost_fn,
         weight=weight
     )
+
 
 def create_hate_speech_enforcement_constraint(weight: float = 150.0) -> WeightedConstraint:
     """
@@ -364,27 +364,27 @@ def create_hate_speech_enforcement_constraint(weight: float = 150.0) -> Weighted
         identity = assignment.get('identity_attack', 0.0)
         toxicity = assignment.get('toxicity', 0.0)
         insult = assignment.get('insult', 0.0)
-        
+
         cost = 0.0
-        
+
         # Severe hate speech (identity > 80%)
         if identity > 0.8:
             required_toxicity = 0.92  # Must be at least 92%
             if toxicity < required_toxicity:
                 cost += (required_toxicity - toxicity) ** 2 * 8
-                
+
         # Moderate hate speech (identity > 60%)
         elif identity > 0.6:
             required_toxicity = 0.85  # Must be at least 85%
             if toxicity < required_toxicity:
                 cost += (required_toxicity - toxicity) ** 2 * 5
-                
+
         # Combined hate speech + insult (very toxic combination)
         if identity > 0.7 and insult > 0.8:
             required_toxicity = 0.95  # Must be at least 95%
             if toxicity < required_toxicity:
                 cost += (required_toxicity - toxicity) ** 2 * 10
-        
+
         return cost
 
     return WeightedConstraint(
@@ -394,6 +394,7 @@ def create_hate_speech_enforcement_constraint(weight: float = 150.0) -> Weighted
         weight=weight
     )
 
+
 def create_hate_speech_severe_constraint(weight: float = 80.0) -> WeightedConstraint:
     """
     For hate speech, severe toxicity should be higher.
@@ -402,24 +403,140 @@ def create_hate_speech_severe_constraint(weight: float = 80.0) -> WeightedConstr
         identity = assignment.get('identity_attack', 0.0)
         severe = assignment.get('severe_toxicity', 0.0)
         insult = assignment.get('insult', 0.0)
-        
+
         # If it's hate speech, severe toxicity should be significant
         if identity > 0.7:
             min_severe = 0.6  # At least 60% severe toxicity
             if severe < min_severe:
                 return (min_severe - severe) ** 2 * 3
-                
-        # Combined identity + insult should have high severe toxicity  
+
+        # Combined identity + insult should have high severe toxicity
         if identity > 0.5 and insult > 0.8:
             min_severe = 0.7  # At least 70% severe toxicity
             if severe < min_severe:
                 return (min_severe - severe) ** 2 * 4
-        
+
         return 0.0
 
     return WeightedConstraint(
         name="hate_speech_severe_toxicity",
         variables=['identity_attack', 'severe_toxicity', 'insult'],
+        cost_function=cost_fn,
+        weight=weight
+    )
+
+
+def create_sexual_explicit_protection_constraint(weight: float = 200.0) -> WeightedConstraint:
+    """
+    Protect sexual_explicit from inappropriate increases.
+    If the original text has low sexual content, keep it low.
+    """
+    def cost_fn(assignment: Dict[str, float]) -> float:
+        sexual = assignment.get('sexual_explicit', 0.0)
+        threat = assignment.get('threat', 0.0)
+        identity = assignment.get('identity_attack', 0.0)
+        insult = assignment.get('insult', 0.0)
+
+        # Original sexual content was very low (0.5%)
+        # If current sexual is much higher, penalize heavily
+        cost = 0.0
+
+        # If sexual content jumps above reasonable threshold without justification
+        if sexual > 0.2:  # 20% threshold
+            # Check if there's ANY reason for sexual content to be high
+            text_is_sexual = False  # We don't have access to original text here
+
+            # If no clear sexual indicators, heavily penalize
+            if not text_is_sexual:
+                # Exponential penalty for inappropriate sexual classification
+                cost += (sexual - 0.2) ** 3 * 10
+
+        # Extra protection: if sexual jumps above 50%, massive penalty
+        if sexual > 0.5:
+            cost += (sexual - 0.5) ** 4 * 20
+
+        return cost
+
+    return WeightedConstraint(
+        name="sexual_explicit_protection",
+        variables=['sexual_explicit', 'threat', 'identity_attack', 'insult'],
+        cost_function=cost_fn,
+        weight=weight
+    )
+
+
+def create_low_category_conservation_constraint(weight: float = 100.0) -> WeightedConstraint:
+    """
+    Conserve low scores for categories that were originally low.
+    Prevents the system from artificially inflating unrelated categories.
+    """
+    def cost_fn(assignment: Dict[str, float]) -> float:
+        sexual = assignment.get('sexual_explicit', 0.0)
+        obscene = assignment.get('obscene', 0.0)
+
+        cost = 0.0
+
+        # Conservative approach: if a category was very low, keep it relatively low
+        # Sexual content conservation (original was 0.5%)
+        if sexual > 0.15:  # Don't let it go above 15% without strong reason
+            cost += (sexual - 0.15) ** 2 * 2
+
+        # Obscene content conservation (original was 4.5%)
+        if obscene > 0.25:  # Don't let it go above 25% without strong reason
+            cost += (obscene - 0.25) ** 2 * 1.5
+
+        return cost
+
+    return WeightedConstraint(
+        name="low_category_conservation",
+        variables=['sexual_explicit', 'obscene'],
+        cost_function=cost_fn,
+        weight=weight
+    )
+
+
+def create_sexual_obscene_correlation_constraint(weight: float = 120.0) -> WeightedConstraint:
+    """
+    Sexual content should correlate with obscene content.
+    Prevents sexual inflation when obscene is low, allows it when obscene is high.
+    """
+    def cost_fn(assignment: Dict[str, float]) -> float:
+        sexual = assignment.get('sexual_explicit', 0.0)
+        obscene = assignment.get('obscene', 0.0)
+        threat = assignment.get('threat', 0.0)
+
+        cost = 0.0
+
+        # Calculate reasonable sexual limit based on obscene content
+        if obscene > 0.8:
+            # High obscene → allow high sexual (like your test case)
+            max_reasonable_sexual = 0.95  # Allow up to 95%
+        elif obscene > 0.5:
+            # Medium obscene → allow medium sexual
+            max_reasonable_sexual = 0.6   # Allow up to 60%
+        elif obscene > 0.2:
+            # Low obscene → allow some sexual
+            max_reasonable_sexual = 0.3   # Allow up to 30%
+        else:
+            # Very low obscene → minimal sexual
+            max_reasonable_sexual = 0.15  # Allow up to 15%
+
+        # Special case: if threat is very high but obscene is low, be more restrictive
+        if threat > 0.8 and obscene < 0.3:
+            max_reasonable_sexual = 0.1  # Only 10% for high-threat, low-obscene
+
+        # Apply penalty if sexual exceeds reasonable limit
+        if sexual > max_reasonable_sexual:
+            excess = sexual - max_reasonable_sexual
+            # Stronger penalty for low-obscene cases
+            penalty_strength = 3 if obscene < 0.3 else 1
+            cost += excess ** 2 * penalty_strength
+
+        return cost
+
+    return WeightedConstraint(
+        name="sexual_obscene_correlation",
+        variables=['sexual_explicit', 'obscene', 'threat'],
         cost_function=cost_fn,
         weight=weight
     )

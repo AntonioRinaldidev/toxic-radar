@@ -194,6 +194,18 @@ async def paraphrase(request: ParaphraseRequest):
     validate_request(request)
 
     try:
+        # ⭐ Step 0: Analyze ORIGINAL text with SCP reasoning FIRST
+        logger.info("🧠 Analyzing original text with SCP reasoning...")
+        original_raw_toxicity = score_toxicity([request.text])[0]
+        original_reasoning_result = apply_reasoning(original_raw_toxicity)
+        original_adjusted_labels = original_reasoning_result.get(
+            'adjusted_labels', original_raw_toxicity)
+        original_adjusted_toxicity = original_adjusted_labels.get(
+            'toxicity', 0.0)
+
+        logger.info(
+            f"📊 Original toxicity: {original_raw_toxicity.get('toxicity', 0.0):.3f} → {original_adjusted_toxicity:.3f} (after reasoning)")
+
         # Generate paraphrases with system-adaptive parameters
         kwargs = request.custom_params or {}
         candidates = generate_paraphrases(
@@ -232,21 +244,25 @@ async def paraphrase(request: ParaphraseRequest):
             candidates, adjusted_toxicity_scores, similarity_scores, fluency_scores, ranking
         )
 
-        # Calculate metadata
+        # Calculate metadata with ADJUSTED scores for consistency
         processing_time = time.time() - start_time
-        original_toxicity = score_toxicity([request.text])[
-            0].get('toxicity', 0.0)
         best_toxicity = ranked_candidates[0].toxicity if ranked_candidates else 1.0
 
         metadata = {
             "processing_time_seconds": round(processing_time, 3),
-            "original_toxicity": round(original_toxicity, 3),
+            # ⭐ NEW: raw score
+            "original_toxicity_raw": round(original_raw_toxicity.get('toxicity', 0.0), 3),
+            # ⭐ CHANGED: now adjusted
+            "original_toxicity": round(original_adjusted_toxicity, 3),
             "best_candidate_toxicity": round(best_toxicity, 3),
-            "toxicity_reduction": round(max(0.0, original_toxicity - best_toxicity), 3),
+            # ⭐ FIXED: adjusted vs adjusted
+            "toxicity_reduction": round(max(0.0, original_adjusted_toxicity - best_toxicity), 3),
             "reasoning_rules_applied": len([r for r in adjusted_results if r.get('explanations')]),
             "generation_mode": request.mode,
             "candidates_generated": len(candidates),
-            "candidates_returned": len(ranked_candidates)
+            "candidates_returned": len(ranked_candidates),
+            # ⭐ NEW: flag to indicate reasoning was applied
+            "reasoning_applied_to_original": True
         }
 
         return ParaphraseResponse(
