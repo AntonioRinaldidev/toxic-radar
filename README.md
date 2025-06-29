@@ -49,7 +49,7 @@ ToxicRadar is a complete full-stack application that provides intelligent proces
 
 ### 🧠 AI Backend
 - **Classification**: Advanced toxicity detection using Detoxify transformer models
-- **Reasoning**: Soft-CSP based logical refinement with WeightedSemiring optimization  
+- **Reasoning**: Advanced Soft-CSP with 12+ specialized constraints using WeightedSemiring and Hill Climbing optimization
 - **Paraphrasing**: Intelligent text rewriting with multi-criteria ranking using voting theory
 - **Universal Optimization**: Auto-adaptive performance for any hardware (CPU/GPU/MPS)
 
@@ -228,11 +228,17 @@ ToxicRadar/
 - **Paraphraser Agent**: Text generation and coordination
 - **System Agent**: Universal hardware adaptation
 
-**🔗 Soft-CSP**: WeightedSemiring `(ℝ⁺, +, ×, 0, 1)` 
-- **Variables**: Toxicity dimensions (toxicity, severe_toxicity, threat, etc.)
-- **Constraints**: Cost functions with priorities (consistency=1000, toxicity_target=50)
-- **Algorithm**: Hill Climbing optimization with constraint violation minimization
-- **Semiring Operations**: Cost combination (+) and weight aggregation (×)
+**🔗 Enhanced Soft-CSP**: WeightedSemiring `(ℝ⁺, +, ×, 0, 1)` with Hill Climbing solver
+- **Variables**: 7 toxicity dimensions (toxicity, severe_toxicity, insult, threat, identity_attack, obscene, sexual_explicit)
+- **Constraints**: 12 specialized safety constraints with priority weights (150-2000):
+  - `toxicity_safety_constraint` (2000) - Prevents toxicity reduction for extreme content
+  - `consistency_constraint` (1200) - Maintains logical consistency between labels
+  - `low_toxicity_constraint` (1000) - Handles low-toxicity edge cases
+  - `value_protection_constraint` (800) - Anti-escape protection for critical values
+  - `sexual_violence_constraint` (500) - Specialized sexual violence detection
+  - `threat_detection_constraint` (300) - Advanced threat pattern recognition
+  - `severe_toxicity_boost_constraint` (250) - Amplifies severe toxicity signals
+- **Algorithm**: Enhanced Hill Climbing with multi-step exploration and convergence detection
 
 **🗳️ Voting Theory**: Democratic decision making
 - **Utility-based Voting**: Weighted scoring (toxicity 50%, similarity 30%, fluency 20%)
