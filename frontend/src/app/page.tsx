@@ -1,233 +1,374 @@
 'use client';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import '@/styles/Home.css';
 
-interface ToxicityScore {
-	raw_classification: {
-		toxicity: number;
-		severe_toxicity: number;
-		obscene: number;
-		identity_attack: number;
-		insult: number;
-		threat: number;
-		sexual_explicit: number;
-	};
+// Enhanced interfaces with better typing
+interface ToxicityClassification {
+	toxicity: number;
+	severe_toxicity: number;
+	obscene: number;
+	identity_attack: number;
+	insult: number;
+	threat: number;
+	sexual_explicit: number;
+}
 
-	adjusted_classification: {
-		toxicity: number;
-		severe_toxicity: number;
-		obscene: number;
-		identity_attack: number;
-		insult: number;
-		threat: number;
-		sexual_explicit: number;
-	};
+interface ToxicitySummary {
+	is_toxic: boolean;
+	toxicity_level: 'high' | 'medium' | 'low';
+	main_issues: string[];
+	reasoning_applied: boolean;
+	toxicity_adjustment: number;
+}
 
-	summary: {
-		is_toxic: boolean;
-		toxicity_level: string;
-		main_issues: string[];
-	};
-
+interface ToxicityAnalysis {
+	raw_classification: ToxicityClassification;
+	adjusted_classification: ToxicityClassification;
+	reasoning_explanations: string[];
+	summary: ToxicitySummary;
 	text: string;
 }
 
-export default function Home() {
+interface ParaphraseCandidate {
+	text: string;
+	toxicity: number;
+	similarity: number;
+	fluency: number;
+	rank: number;
+}
+
+interface ParaphraseResult {
+	original: string;
+	candidates: ParaphraseCandidate[];
+	metadata: {
+		original_toxicity: number;
+		best_candidate_toxicity: number;
+		toxicity_reduction: number;
+		candidates_generated: number;
+	};
+}
+
+type ProcessingMode = 'analyze' | 'paraphrase' | 'idle';
+
+export default function ToxicRadarPage() {
+	// State management
 	const [inputText, setInputText] = useState('');
-	const [paraphrasedText, setParaphrasedText] = useState([]);
-	const [toxicityScores, setToxicityScores] = useState<ToxicityScore | null>(
-		null,
-	);
+	const [toxicityAnalysis, setToxicityAnalysis] =
+		useState<ToxicityAnalysis | null>(null);
+	const [paraphraseResult, setParaphraseResult] =
+		useState<ParaphraseResult | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string>('');
+	const [processingMode, setProcessingMode] = useState<ProcessingMode>('idle');
+	const [numCandidates, setNumCandidates] = useState(3);
 
-	const handleParaphrase = async () => {
+	// Clear results and errors
+	const clearResults = useCallback(() => {
+		setToxicityAnalysis(null);
+		setParaphraseResult(null);
+		setError('');
+	}, []);
+
+	// Enhanced error handling
+	const handleApiError = useCallback((error: any, defaultMessage: string) => {
+		if (error?.detail) {
+			setError(error.detail);
+		} else if (error?.message) {
+			setError(error.message);
+		} else {
+			setError(defaultMessage);
+		}
+	}, []);
+
+	// Toxicity analysis handler
+	const handleAnalyzeToxicity = useCallback(async () => {
+		if (!inputText.trim()) {
+			setError('Please enter some text to analyze.');
+			return;
+		}
+
+		setIsLoading(true);
+		setProcessingMode('analyze');
+		clearResults();
+
+		try {
+			const response = await fetch('http://localhost:8000/analyze', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ text: inputText.trim() }),
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw errorData;
+			}
+
+			const data = await response.json();
+			setToxicityAnalysis({
+				raw_classification: data.analysis.raw_classification,
+				adjusted_classification: data.analysis.adjusted_classification,
+				reasoning_explanations: data.analysis.reasoning_explanations || [],
+				summary: data.analysis.summary,
+				text: data.text,
+			});
+		} catch (err) {
+			handleApiError(err, 'Failed to analyze toxicity. Please try again.');
+		} finally {
+			setIsLoading(false);
+			setProcessingMode('idle');
+		}
+	}, [inputText, clearResults, handleApiError]);
+
+	// Paraphrasing handler
+	const handleParaphrase = useCallback(async () => {
 		if (!inputText.trim()) {
 			setError('Please enter some text to paraphrase.');
 			return;
 		}
+
 		setIsLoading(true);
-		setError('');
-		setParaphrasedText([]);
-		setToxicityScores(null);
+		setProcessingMode('paraphrase');
+		clearResults();
 
 		try {
 			const response = await fetch('http://localhost:8000/paraphrase', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					text: inputText,
-					num_candidates: 3,
+					text: inputText.trim(),
+					num_candidates: numCandidates,
 					mode: 'auto',
 				}),
 			});
 
 			if (!response.ok) {
 				const errorData = await response.json();
-				console.log('errorData', errorData);
-				throw new Error(errorData.detail || 'Failed to paraphrase text.');
+				throw errorData;
 			}
 
 			const data = await response.json();
-			const paraphrases = data.candidates.map(
-				(candidate: any) => candidate.text,
-			);
-			setParaphrasedText(paraphrases);
+			setParaphraseResult({
+				original: data.original,
+				candidates: data.candidates,
+				metadata: data.metadata,
+			});
 		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : 'An unexpected error occurred.',
-			);
+			handleApiError(err, 'Failed to generate paraphrases. Please try again.');
 		} finally {
 			setIsLoading(false);
+			setProcessingMode('idle');
 		}
-	};
+	}, [
+		inputText,
+		numCandidates,
+		clearResults,
+		handleApiError,
+		handleAnalyzeToxicity,
+	]);
 
-	const handleClassifyToxicity = async () => {
-		if (!inputText.trim()) {
-			setError('Please enter some text to classify toxicity.');
-			return;
-		}
-
-		setIsLoading(true);
-		setError('');
-		setToxicityScores(null);
-
-		try {
-			const response = await fetch('http://localhost:8000/analyze', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({ text: inputText }),
-			});
-
-			if (!response.ok) {
-				const errorData = await response.json();
-				throw new Error(errorData.detail || 'Failed to classify toxicity.');
-			}
-
-			const data = await response.json();
-
-			setToxicityScores({
-				raw_classification: data.analysis.raw_classification,
-				adjusted_classification: data.analysis.adjusted_classification,
-				summary: data.analysis.summary,
-				text: data.text,
-			});
-		} catch (err: any) {
-			setError(err.message);
-		} finally {
-			setIsLoading(false);
-		}
-	};
-
-	// Helper functions
-	const formatScore = (score: number): string => {
+	// Utility functions
+	const formatScore = useCallback((score: number): string => {
 		if (typeof score !== 'number' || isNaN(score)) return 'N/A';
 		return `${(score * 100).toFixed(1)}%`;
-	};
+	}, []);
 
-	const getToxicityClass = (score: number): string => {
+	const getToxicityClass = useCallback((score: number): string => {
 		if (typeof score !== 'number' || isNaN(score)) return 'unknown';
 		if (score >= 0.7) return 'high';
 		if (score >= 0.3) return 'medium';
 		return 'low';
-	};
+	}, []);
 
-	const formatLabel = (label: string): string => {
+	const formatLabel = useCallback((label: string): string => {
 		return label
 			.split('_')
 			.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
 			.join(' ');
-	};
+	}, []);
+
+	const getProcessingMessage = useCallback(() => {
+		switch (processingMode) {
+			case 'analyze':
+				return 'Analyzing toxicity...';
+			case 'paraphrase':
+				return 'Generating paraphrases...';
+			default:
+				return 'Processing...';
+		}
+	}, [processingMode]);
 
 	return (
-		<div className='page-Container'>
-			<div className='page-Main'>
-				<h1 className='title'>Welcome to TOXIC RADAR</h1>
-				<p className='description'>
-					Your one-stop platform for toxic online content detection and
-					paraphrasing
-				</p>
-
-				{/* Input Section */}
-				<div className='input-section'>
-					<textarea
-						className='text-input'
-						placeholder='Enter text here to detect toxicity or paraphrase...'
-						value={inputText}
-						onChange={(e) => setInputText(e.target.value)}
-						rows={8}></textarea>
-					<div className='button-group'>
-						<button
-							onClick={handleParaphrase}
-							disabled={isLoading || !inputText.trim()}>
-							{isLoading ? 'Processing...' : 'Paraphrase'}
-						</button>
-						<button
-							onClick={handleClassifyToxicity}
-							disabled={isLoading || !inputText.trim()}
-							className='button-secondary'>
-							Analyze Toxicity Only
-						</button>
+		<div className='toxic-radar-container'>
+			{/* Hero Section */}
+			<header className='hero-section'>
+				<div className='hero-content'>
+					<h1 className='hero-title'>
+						<span className='radar-icon'></span>
+						ToxicRadar
+					</h1>
+					<p className='hero-subtitle'>
+						AI-Powered Content Analysis & Intelligent Paraphrasing
+					</p>
+					<div className='hero-features'>
+						<span className='feature-tag'>Soft-CSP Reasoning</span>
+						<span className='feature-tag'>Voting Theory</span>
+						<span className='feature-tag'>Multi-Agent System</span>
 					</div>
 				</div>
+			</header>
+
+			{/* Main Content */}
+			<main className='main-content'>
+				{/* Input Section */}
+				<section className='input-section'>
+					<div className='input-header'>
+						<h2>Text Analysis</h2>
+						<p>
+							Enter text below to analyze toxicity levels or generate safer
+							alternatives
+						</p>
+					</div>
+
+					<div className='input-container'>
+						<textarea
+							className='text-input'
+							placeholder='Type or paste your text here for analysis...'
+							value={inputText}
+							onChange={(e) => setInputText(e.target.value)}
+							rows={6}
+							maxLength={500}
+							disabled={isLoading}
+						/>
+						<div className='input-footer'>
+							<span className='char-counter'>
+								{inputText.length}/500 characters
+							</span>
+						</div>
+					</div>
+
+					<div className='action-buttons'>
+						<button
+							className='btn btn-primary'
+							onClick={handleAnalyzeToxicity}
+							disabled={isLoading || !inputText.trim()}>
+							{isLoading && processingMode === 'analyze' ? (
+								<>
+									<span className='loading-spinner'></span>
+									Analyzing...
+								</>
+							) : (
+								<>
+									<span className='btn-icon'></span>
+									Analyze Toxicity
+								</>
+							)}
+						</button>
+
+						<button
+							className='btn btn-secondary'
+							onClick={handleParaphrase}
+							disabled={isLoading || !inputText.trim()}>
+							{isLoading && processingMode === 'paraphrase' ? (
+								<>
+									<span className='loading-spinner'></span>
+									Paraphrasing...
+								</>
+							) : (
+								<>
+									<span className='btn-icon'></span>
+									Generate Paraphrases
+								</>
+							)}
+						</button>
+					</div>
+				</section>
 
 				{/* Status Messages */}
-				{isLoading && <p className='message-status'>Loading...</p>}
-				{error && <p className='message-error'>{error}</p>}
+				{isLoading && (
+					<div className='status-message loading'>
+						<div className='status-content'>
+							<span className='loading-spinner large'></span>
+							<span>{getProcessingMessage()}</span>
+						</div>
+					</div>
+				)}
 
-				{/* Analysis Results */}
-				{toxicityScores && (
-					<div className='toxicity-results'>
-						{/* Summary Section */}
-						<div className='analysis-summary'>
+				{error && (
+					<div className='status-message error'>
+						<span className='status-icon'>⚠️</span>
+						<span>{error}</span>
+						<button onClick={() => setError('')} className='close-btn'>
+							×
+						</button>
+					</div>
+				)}
+
+				{/* Results Sections */}
+				{toxicityAnalysis && (
+					<section className='results-section toxicity-results'>
+						<div className='section-header'>
 							<h2>Toxicity Analysis Results</h2>
-
-							{/* Original Text - moved to top */}
-							<div className='analyzed-text'>
-								<h4>Analyzed Text:</h4>
-								<p className='text-content'>"{toxicityScores.text}"</p>
-							</div>
-
-							{/* Overall Status */}
 							<div
 								className={`overall-status ${
-									toxicityScores.summary.is_toxic ? 'toxic' : 'clean'
+									toxicityAnalysis.summary.is_toxic ? 'toxic' : 'clean'
 								}`}>
 								<span className='status-icon'>
-									{toxicityScores.summary.is_toxic ? '🚨' : '✅'}
+									{toxicityAnalysis.summary.is_toxic ? '🚨' : '✅'}
 								</span>
-								<span className='status-text'>
-									{toxicityScores.summary.is_toxic
-										? `Toxic Content (${toxicityScores.summary.toxicity_level})`
-										: 'Clean Content'}
-								</span>
-							</div>
-
-							{/* Main Issues */}
-							{toxicityScores.summary.main_issues?.length > 0 && (
-								<div className='main-issues'>
-									<strong>Main Issues:</strong>{' '}
-									{toxicityScores.summary.main_issues.join(', ')}
+								<div className='status-details'>
+									<span className='status-text'>
+										{toxicityAnalysis.summary.is_toxic
+											? `Toxic Content Detected`
+											: 'Content is Clean'}
+									</span>
+									<span className='status-level'>
+										Level:{' '}
+										{toxicityAnalysis.summary.toxicity_level.toUpperCase()}
+									</span>
 								</div>
-							)}
+							</div>
 						</div>
 
-						{/* Classification Scores */}
-						<div className='classification-section'>
+						{/* Original Text Display */}
+						<div className='analyzed-text-display'>
+							<h3>Analyzed Text</h3>
+							<div className='text-content'>"{toxicityAnalysis.text}"</div>
+						</div>
+
+						{/* Main Issues */}
+						{toxicityAnalysis.summary.main_issues?.length > 0 && (
+							<div className='main-issues-display'>
+								<h4>Identified Issues:</h4>
+								<div className='issues-tags'>
+									{toxicityAnalysis.summary.main_issues.map((issue, index) => (
+										<span key={index} className='issue-tag'>
+											{formatLabel(issue)}
+										</span>
+									))}
+								</div>
+							</div>
+						)}
+
+						{/* Toxicity Scores Grid */}
+						<div className='scores-section'>
 							<h3>Toxicity Scores</h3>
-							<div className='score-grid'>
-								{Object.entries(toxicityScores.adjusted_classification).map(
+							<div className='scores-grid'>
+								{Object.entries(toxicityAnalysis.adjusted_classification).map(
 									([label, score]) => (
-										<div key={label} className='score-item'>
-											<span className='score-label'>{formatLabel(label)}</span>
-											<span
-												className={`score-value ${getToxicityClass(score)}`}>
+										<div key={label} className='score-card'>
+											<div className='score-header'>
+												<span className='score-label'>
+													{formatLabel(label)}
+												</span>
+											</div>
+											<div className={`score-value ${getToxicityClass(score)}`}>
 												{formatScore(score)}
-											</span>
+											</div>
+											<div className='score-bar'>
+												<div
+													className={`score-fill ${getToxicityClass(score)}`}
+													style={{ width: `${score * 100}%` }}></div>
+											</div>
 										</div>
 									),
 								)}
@@ -236,21 +377,19 @@ export default function Home() {
 
 						{/* Raw vs Adjusted Comparison */}
 						<details className='comparison-section'>
-							<summary>View Raw vs Adjusted Scores</summary>
-							<div className='comparison-grid'>
-								<div className='raw-scores'>
+							<summary>View Raw vs Adjusted Scores Comparison</summary>
+							<div className='comparison-content'>
+								<div className='comparison-side'>
 									<h4>Raw Classification</h4>
-									<div className='score-grid'>
-										{Object.entries(toxicityScores.raw_classification).map(
+									<div className='mini-scores-grid'>
+										{Object.entries(toxicityAnalysis.raw_classification).map(
 											([label, score]) => (
-												<div key={label} className='score-item'>
-													<span className='score-label'>
+												<div key={label} className='mini-score-item'>
+													<span className='mini-label'>
 														{formatLabel(label)}
 													</span>
 													<span
-														className={`score-value ${getToxicityClass(
-															score,
-														)}`}>
+														className={`mini-value ${getToxicityClass(score)}`}>
 														{formatScore(score)}
 													</span>
 												</div>
@@ -258,52 +397,144 @@ export default function Home() {
 										)}
 									</div>
 								</div>
-
-								<div className='adjusted-scores'>
-									<h4>After Reasoning</h4>
-									<div className='score-grid'>
-										{Object.entries(toxicityScores.adjusted_classification).map(
-											([label, score]) => (
-												<div key={label} className='score-item'>
-													<span className='score-label'>
-														{formatLabel(label)}
-													</span>
-													<span
-														className={`score-value ${getToxicityClass(
-															score,
-														)}`}>
-														{formatScore(score)}
-													</span>
-													{/* Show difference if there's a change */}
-													{toxicityScores.raw_classification[
-														label as keyof typeof toxicityScores.raw_classification
-													] !== score && (
-														<span className='score-change'>(adjusted)</span>
-													)}
-												</div>
-											),
-										)}
+								<div className='comparison-side'>
+									<h4>After AI Reasoning</h4>
+									<div className='mini-scores-grid'>
+										{Object.entries(
+											toxicityAnalysis.adjusted_classification,
+										).map(([label, score]) => (
+											<div key={label} className='mini-score-item'>
+												<span className='mini-label'>{formatLabel(label)}</span>
+												{(() => {
+													const raw =
+														toxicityAnalysis.raw_classification[
+															label as keyof ToxicityClassification
+														];
+													const adjusted =
+														toxicityAnalysis.adjusted_classification[
+															label as keyof ToxicityClassification
+														];
+													if (adjusted > raw) {
+														return (
+															<span className='adjustment-indicator increased'>
+																↑ Increased
+															</span>
+														);
+													} else if (adjusted < raw) {
+														return (
+															<span className='adjustment-indicator decreased'>
+																↓ Decreased
+															</span>
+														);
+													} else {
+														return null;
+													}
+												})()}
+												<span
+													className={`mini-value ${getToxicityClass(score)}`}>
+													{formatScore(score)}
+												</span>
+											</div>
+										))}
 									</div>
 								</div>
 							</div>
 						</details>
-					</div>
+					</section>
 				)}
 
 				{/* Paraphrase Results */}
-				{paraphrasedText.length > 0 && (
-					<div className='paraphrase-results'>
-						<h2>Paraphrased Suggestions</h2>
-						<ul className='paraphrase-list'>
-							{paraphrasedText.map((pText, index) => (
-								<li key={index} className='paraphrase-item'>
-									{pText}
-								</li>
+				{paraphraseResult && (
+					<section className='results-section paraphrase-results'>
+						<div className='section-header'>
+							<h2>Generated Paraphrases</h2>
+							<div className='paraphrase-stats'>
+								<div className='stat-item'>
+									<span className='stat-label'>Original Toxicity:</span>
+									<span
+										className={`stat-value ${getToxicityClass(
+											paraphraseResult.metadata.original_toxicity,
+										)}`}>
+										{formatScore(paraphraseResult.metadata.original_toxicity)}
+									</span>
+								</div>
+								<div className='stat-item'>
+									<span className='stat-label'>Best Alternative:</span>
+									<span
+										className={`stat-value ${getToxicityClass(
+											paraphraseResult.metadata.best_candidate_toxicity,
+										)}`}>
+										{formatScore(
+											paraphraseResult.metadata.best_candidate_toxicity,
+										)}
+									</span>
+								</div>
+								<div className='stat-item improvement'>
+									<span className='stat-label'>Toxicity Reduction:</span>
+									<span className='stat-value'>
+										-{formatScore(paraphraseResult.metadata.toxicity_reduction)}
+									</span>
+								</div>
+							</div>
+						</div>
+
+						<div className='paraphrase-list'>
+							{paraphraseResult.candidates.map((candidate, index) => (
+								<div key={index} className='paraphrase-card'>
+									<div className='paraphrase-header'>
+										<div className='rank-badge'>#{candidate.rank}</div>
+										<div className='candidate-scores'>
+											<span
+												className={`score-chip toxicity ${getToxicityClass(
+													candidate.toxicity,
+												)}`}>
+												Toxicity: {formatScore(candidate.toxicity)}
+											</span>
+											<span className='score-chip similarity'>
+												Similarity: {formatScore(candidate.similarity)}
+											</span>
+											<span className='score-chip fluency'>
+												Fluency: {formatScore(candidate.fluency)}
+											</span>
+										</div>
+									</div>
+									<div className='paraphrase-text'>{candidate.text}</div>
+									<div className='paraphrase-footer'>
+										<button
+											className='copy-btn'
+											onClick={() =>
+												navigator.clipboard.writeText(candidate.text)
+											}>
+											Copy
+										</button>
+									</div>
+								</div>
 							))}
-						</ul>
-					</div>
+						</div>
+					</section>
 				)}
-			</div>
+			</main>
+
+			{/* Footer */}
+			<footer className='app-footer'>
+				<div className='footer-content'>
+					<p>
+						<strong>ToxicRadar</strong> - Intelligent toxicity detection using
+						Soft-CSP reasoning, voting theory, and multi-agent systems
+					</p>
+					<div className='footer-links'>
+						<a href='#' className='footer-link'>
+							GitHub
+						</a>
+						<a href='#' className='footer-link'>
+							Documentation
+						</a>
+						<a href='#' className='footer-link'>
+							API Reference
+						</a>
+					</div>
+				</div>
+			</footer>
 		</div>
 	);
 }
