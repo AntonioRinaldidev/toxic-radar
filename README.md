@@ -202,7 +202,6 @@ ToxicRadar/
 #### Main Paraphrasing Service (Port 8000)
 ```python
 POST /paraphrase           # Single text paraphrasing with Soft-CSP
-POST /paraphrase_batch     # Batch processing
 POST /paraphrase_advanced  # Advanced controls with custom weights
 POST /analyze             # Classification + Reasoning only
 GET  /health              # System status with hardware info
@@ -310,12 +309,12 @@ curl "http://localhost:8000/health"      # AI Backend health
 ## 📊 Performance Benchmarks
 
 ### AI Backend Performance
-| System | Model Loading | Single Request | Batch (10 texts) |
-|--------|---------------|----------------|------------------|
-| RTX 4090 | 2-5s | 0.5-1s | 3-6s |
-| RTX 3080 | 3-8s | 1-2s | 5-10s |
-| M1 Mac | 5-10s | 2-3s | 8-15s |
-| CPU (16GB) | 10-30s | 3-6s | 15-45s |
+| System | Model Loading | Single Request |
+|--------|---------------|----------------|
+| RTX 4090 | 2-5s | 0.5-1s |
+| RTX 3080 | 3-8s | 1-2s |
+| M1 Mac | 5-10s | 2-3s |
+| CPU (16GB) | 10-30s | 3-6s |
 
 ### Frontend Performance
 - **First Contentful Paint**: <1.5s

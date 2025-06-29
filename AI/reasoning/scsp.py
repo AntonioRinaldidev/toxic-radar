@@ -450,7 +450,7 @@ def create_context_constraint(weight: float = 400.0) -> WeightedConstraint:
         cost = 0.0
 
         # High identity + high threat = systemic threat (very dangerous)
-        if identity > 0.4 and threat > 0.5:
+        if identity > 0.4 and threat > 0.4:
             target_severe = 0.8  # Maximum severity
             if severe < target_severe:
                 cost += (target_severe - severe) ** 2 * 600

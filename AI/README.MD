@@ -206,7 +206,7 @@ AI/
 
 ```python
 POST /classify              # Single text classification
-POST /classify_batch        # Batch processing  
+
 GET  /health               # Service status
 GET  /info                 # Service information
 ```
@@ -235,7 +235,6 @@ POST /reason               # Apply logical rules to toxicity scores
 
 ```python
 POST /paraphrase           # Single text paraphrasing
-POST /paraphrase_batch     # Batch processing
 POST /paraphrase_advanced  # Advanced controls
 GET  /health              # System status
 GET  /system_info         # Comprehensive system info
@@ -263,7 +262,7 @@ The system automatically detects and optimizes for:
 
 **CUDA (NVIDIA GPU)**:
 - Float16 precision for memory efficiency
-- GPU memory management and batch optimization
+- GPU memory management 
 - CUDA autocast for performance
 
 **MPS (Apple Silicon)**:
@@ -274,7 +273,7 @@ The system automatically detects and optimizes for:
 **CPU**:
 - Multi-threading optimization
 - Conservative memory usage
-- Efficient batch processing
+
 
 ### Performance Adaptations
 
@@ -374,7 +373,6 @@ The system provides real-time monitoring of:
 - Memory usage (CPU/GPU)
 - Model loading status
 - Toxicity reduction effectiveness
-- Batch processing efficiency
 - System resource utilization
 
 ## 🔬 Development & Testing
@@ -396,20 +394,7 @@ print(f"Best paraphrase: {result['candidates'][0]['text']}")
 print(f"Toxicity reduction: {result['metadata']['toxicity_reduction']}")
 ```
 
-### Batch Processing
 
-```python
-# Batch processing
-response = requests.post("http://localhost:8000/paraphrase_batch", json={
-    "texts": ["You're terrible!", "This is awful!", "I hate this!"],
-    "num_candidates_each": 3,
-    "mode": "auto"
-})
-
-results = response.json()
-for i, result in enumerate(results['results']):
-    print(f"Text {i+1}: {result['candidates'][0]['text']}")
-```
 
 ## 🐛 Troubleshooting
 
@@ -442,12 +427,12 @@ tail -f logs/classifier.log
 
 Typical performance on different systems:
 
-| System | First Request | Subsequent Requests | Batch (10 texts) |
-|--------|---------------|-------------------|------------------|
-| RTX 4090 | 2-5s | 0.5-1s | 3-6s |
-| RTX 3080 | 3-8s | 1-2s | 5-10s |
-| M1 Mac | 5-10s | 2-3s | 8-15s |
-| CPU (16GB) | 10-30s | 3-6s | 15-45s |
+| System | First Request | Subsequent Requests |
+|--------|---------------|-------------------|
+| RTX 4090 | 2-5s | 0.5-1s |
+| RTX 3080 | 3-8s | 1-2s |
+| M1 Mac | 5-10s | 2-3s |
+| CPU (16GB) | 10-30s | 3-6s |
 
 
 
