@@ -14,7 +14,7 @@ ToxicRadar is a complete full-stack application that provides intelligent proces
 
 ## 🎓 For Professors/Evaluators (Quick Demo)
 
-### Option 1: Desktop GUI (Recommended)
+### Option 1: Desktop GUI 
 ```bash
 git clone https://github.com/AntonioRinaldidev/ToxicRadar.git
 cd ToxicRadar
@@ -22,7 +22,7 @@ pip install -r AI/requirements.txt
 python -m AI.gui.ToxicRadarGui
 ```
 Analyze and paraphrase a single phrase. If you try to re analyze or re paraphrase the same sentence, it won't work.
-### Option 2: API Demo
+### Option 2: API Demo (Recommended)
 ```bash
 # Terminal 1: Start API
 python -m uvicorn AI.paraphraser.service:app --port 8000
