@@ -57,10 +57,6 @@ class ToxicitySCSP:
         self.constraints.append(constraint)
 
     def objective_function(self, assignment: Dict[str, float]) -> float:
-        """
-        Calculate total cost of constraint violations for given assignment.
-        Lower cost = better solution.
-        """
         total_cost = self.semiring.zero
 
         for constraint in self.constraints:
@@ -71,17 +67,11 @@ class ToxicitySCSP:
 
         return total_cost
 
-    def solve(self, initial_assignment: Dict[str, float], step_size: float = 0.01, max_iter: int = 1000) -> Dict[str, float]:
+    def solve(self, initial_assignment: Dict[str, float],
+              step_size: float = 0.02,  # CHANGED: Increased from 0.01
+              max_iter: int = 1000) -> Dict[str, float]:
         """
-        Solve the SCSP using Hill Climbing algorithm.
-
-        Args:
-            initial_assignment: Starting point (e.g., raw Detoxify scores)
-            step_size: Size of steps to try in each direction (default: 0.01)
-            max_iter: Maximum number of iterations (default: 1000)
-
-        Returns:
-            Optimized assignment that minimizes constraint violations
+        Enhanced Hill Climbing with better exploration and debugging
         """
         if not self.validate_assignment(initial_assignment):
             raise ValueError("Invalid initial assignment")
@@ -89,33 +79,50 @@ class ToxicitySCSP:
         current = initial_assignment.copy()
         current_cost = self.objective_function(current)
 
+        # DEBUG: Show initial state
+        print(f"🏔️ Hill Climbing starting:")
+        print(f"   Initial cost: {current_cost:.4f}")
+        print(f"   Initial assignment: {current}")
+
         for iteration in range(max_iter):
             improved = False
             best_neighbor = current.copy()
             best_cost = current_cost
 
-            # Try small steps in all directions for all variables
+            # ENHANCED: Try multiple step sizes for better exploration
+            # Try different granularities
+            step_sizes = [step_size, step_size * 2, step_size * 0.5]
+
             for var in self.variables:
-                for delta in [-step_size, +step_size]:
-                    neighbor = current.copy()
-                    new_value = current[var] + delta
+                for step in step_sizes:
+                    for delta in [-step, +step]:
+                        neighbor = current.copy()
+                        new_value = current[var] + delta
 
-                    # Keep within [0,1] bounds
-                    neighbor[var] = max(0.0, min(1.0, new_value))
+                        # Keep within [0,1] bounds
+                        neighbor[var] = max(0.0, min(1.0, new_value))
 
-                    cost = self.objective_function(neighbor)
+                        cost = self.objective_function(neighbor)
 
-                    if cost < best_cost:
-                        best_neighbor = neighbor
-                        best_cost = cost
-                        improved = True
+                        if cost < best_cost:
+                            best_neighbor = neighbor
+                            best_cost = cost
+                            improved = True
 
             if improved:
                 current = best_neighbor
                 current_cost = best_cost
+
+                # Show progress every few iterations
+                if iteration % 100 == 0:
+                    print(
+                        f"   Iteration {iteration}: cost = {current_cost:.4f}")
             else:
-                # No improvement found - local minimum reached
+                print(f"   🏁 Converged at iteration {iteration}")
                 break
+
+        print(f"   Final cost: {current_cost:.4f}")
+        print(f"   Final assignment: {current}")
 
         return current
 
@@ -128,415 +135,358 @@ class ToxicitySCSP:
                 return False
         return True
 
-# Constraint factory functions
 
-
-def create_toxicity_target_constraint(weight: float = 50.0) -> WeightedConstraint:
+def create_threat_detection_constraint(weight: float = 300.0) -> WeightedConstraint:
     """
-    Toxicity should be proportional to weighted combination of all factors.
-    UPDATED: Better weights for hate speech detection.
+    CORE CONSTRAINT: High toxicity + insult should imply higher threat
+    Specifically targets "should disappear forever" type content
     """
-    def cost_fn(assignment: Dict[str, float]) -> float:
-        threat = assignment.get('threat', 0.0)
-        identity = assignment.get('identity_attack', 0.0)
-        insult = assignment.get('insult', 0.0)
-        obscene = assignment.get('obscene', 0.0)
-        sexual = assignment.get('sexual_explicit', 0.0)
-        severe = assignment.get('severe_toxicity', 0.0)
-
-        # NEW: Detect hate speech context
-        is_hate_speech = identity > 0.7 or (identity > 0.5 and insult > 0.8)
-
-        if is_hate_speech:
-            # Weights for hate speech - identity attack is primary factor
-            target_toxicity = (
-                threat * 0.25 +           # Threats
-                identity * 0.45 +         # HATE SPEECH - main weight!
-                severe * 0.15 +           # Severe toxicity
-                insult * 0.10 +           # Insults
-                obscene * 0.03 +          # Obscenity is minor
-                sexual * 0.02             # Sexual content is minor
-            )
-            # Ensure minimum toxicity for hate speech
-            target_toxicity = max(target_toxicity, 0.85)
-        else:
-            # Original weights for normal toxic content
-            target_toxicity = (
-                threat * 0.35 +           # Threats are very serious
-                identity * 0.30 +         # Identity attacks
-                severe * 0.20 +           # Severe toxicity
-                insult * 0.10 +           # Insults are less severe
-                obscene * 0.03 +          # Obscenity is mild
-                sexual * 0.02             # Sexual content is least toxic
-            )
-
-        # Ensure target is within bounds
-        target_toxicity = max(0.1, min(0.95, target_toxicity))
-        actual_toxicity = assignment.get('toxicity', 0.0)
-
-        return (actual_toxicity - target_toxicity) ** 2
-
-    return WeightedConstraint(
-        name="toxicity_target_adaptive",
-        variables=['threat', 'identity_attack', 'insult', 'obscene',
-                   'sexual_explicit', 'severe_toxicity', 'toxicity'],
-        cost_function=cost_fn,
-        weight=weight
-    )
-
-
-def create_severe_toxicity_target_constraint(weight: float = 30.0) -> WeightedConstraint:
-    """
-    Severe toxicity should be based on the most extreme factors.
-    """
-    def cost_fn(assignment: Dict[str, float]) -> float:
-        threat = assignment.get('threat', 0.0)
-        identity = assignment.get('identity_attack', 0.0)
-        obscene = assignment.get('obscene', 0.0)
-
-        # Severe toxicity should be driven by the worst factors
-        # Take max of serious factors, then scale down
-        max_serious = max(threat, identity)
-        # Severe is typically less than the worst factor
-        target_severe = max_serious * 0.7
-
-        # Add contribution from obscenity if very high
-        if obscene > 0.8:
-            target_severe = min(1.0, target_severe + (obscene - 0.8) * 0.5)
-
-        target_severe = max(0.0, min(0.9, target_severe))
-
-        actual_severe = assignment.get('severe_toxicity', 0.0)
-
-        return (actual_severe - target_severe) ** 2
-
-    return WeightedConstraint(
-        name="severe_toxicity_target",
-        variables=['threat', 'identity_attack', 'obscene', 'severe_toxicity'],
-        cost_function=cost_fn,
-        weight=weight
-    )
-
-
-def create_insult_target_constraint(weight: float = 20.0) -> WeightedConstraint:
-    """
-    Insult should be proportional to actual insulting content, not inflated by other factors.
-    """
-    def cost_fn(assignment: Dict[str, float]) -> float:
-        threat = assignment.get('threat', 0.0)
-        identity = assignment.get('identity_attack', 0.0)
-        obscene = assignment.get('obscene', 0.0)
-        insult = assignment.get('insult', 0.0)
-
-        # If insult is high but other factors are low, it might be over-estimated
-        # If other factors are high, insult might be under-estimated
-
-        other_factors_avg = (threat + identity + obscene) / 3
-
-        if other_factors_avg < 0.2:
-            # Pure insult case - might be over-estimated by Detoxify
-            target_insult = min(0.8, insult)  # Cap pure insults
-        elif other_factors_avg > 0.6:
-            # Multi-factor toxicity - insult should be higher
-            target_insult = min(1.0, insult + other_factors_avg * 0.2)
-        else:
-            # Normal case - small adjustment
-            target_insult = insult
-
-        return (insult - target_insult) ** 2 * 0.5  # Lighter penalty
-
-    return WeightedConstraint(
-        name="insult_target_adjustment",
-        variables=['threat', 'identity_attack', 'obscene', 'insult'],
-        cost_function=cost_fn,
-        weight=weight
-    )
-
-
-def create_balance_constraint(weight: float = 10.0) -> WeightedConstraint:
-    """
-    Prevent extreme toxicity when factors don't justify it, and prevent too-low toxicity when they do.
-    """
-    def cost_fn(assignment: Dict[str, float]) -> float:
-        threat = assignment.get('threat', 0.0)
-        identity = assignment.get('identity_attack', 0.0)
-        insult = assignment.get('insult', 0.0)
-        severe = assignment.get('severe_toxicity', 0.0)
+    def cost_function(assignment: Dict[str, float]) -> float:
         toxicity = assignment.get('toxicity', 0.0)
+        insult = assignment.get('insult', 0.0)
+        threat = assignment.get('threat', 0.0)
 
-        # Calculate "evidence" for high toxicity
-        high_evidence = sum([
-            1 for score in [threat, identity, insult, severe]
-            if score > 0.7
-        ])
+        if toxicity > 0.95 and insult > 0.80:
+            min_threat = 0.4
+            if threat < min_threat:
+                cost = (min_threat - threat) ** 2 * 200
 
-        medium_evidence = sum([
-            1 for score in [threat, identity, insult, severe]
-            if 0.4 <= score <= 0.7
-        ])
+                return cost
+
+        return 0.0
+
+    return WeightedConstraint(
+        name="threat_detection",
+        variables=['toxicity', 'insult', 'threat'],
+        cost_function=cost_function,
+        weight=weight
+    )
+
+
+def create_severe_toxicity_boost_constraint(weight: float = 200.0) -> WeightedConstraint:
+    def cost_function(assignment: Dict[str, float]) -> float:
+        toxicity = assignment.get('toxicity', 0.0)
+        severe = assignment.get('severe_toxicity', 0.0)
+        threat = assignment.get('threat', 0.0)
+        insult = assignment.get('insult', 0.0)
 
         cost = 0.0
 
-        # Too high toxicity without evidence
-        if toxicity > 0.9 and high_evidence == 0:
-            cost += (toxicity - 0.9) ** 2 * 2
+        # Zone 1: ANY insult content
+        if insult > 0.01:
+            activation_strength = min(1.0, (insult - 0.01) / 0.15)
 
-        if toxicity > 0.8 and high_evidence == 0 and medium_evidence < 2:
-            cost += (toxicity - 0.8) ** 2
+            target_severe = 0.15 + \
+                (activation_strength * 0.15)  # 15-30% instead of 20-40%
+            if severe < target_severe:
+                cost += (target_severe - severe) ** 2 * \
+                    150 * activation_strength
 
-        # Too low toxicity with strong evidence
-        if toxicity < 0.6 and high_evidence >= 2:
-            cost += (0.6 - toxicity) ** 2
+        # Zone 2: High threat content
+        if threat > 0.65:
+            activation_strength = min(1.0, (threat - 0.65) / 0.20)
+            target_severe = 0.30 + \
+                (activation_strength * 0.30)  # Higher target
+            if severe < target_severe:
+                cost += (target_severe - severe) ** 2 * \
+                    250 * activation_strength
 
-        if toxicity < 0.8 and high_evidence >= 1 and threat > 0.8:
-            cost += (0.8 - toxicity) ** 2
+        # Zone 3: High toxicity
+        if toxicity > 0.80:
+            activation_strength = min(1.0, (toxicity - 0.80) / 0.15)
+            target_severe = 0.35 + (activation_strength * 0.25)
+            if severe < target_severe:
+                cost += (target_severe - severe) ** 2 * \
+                    300 * activation_strength
+
+        # Zone 4: Death threat pattern
+        if toxicity > 0.85 and threat > 0.75:
+            target_severe = 0.5
+            if severe < target_severe:
+                cost += (target_severe - severe) ** 2 * 400  # Higher penalty
+
+        # Zone 5: Direct high threat
+        if threat > 0.68:
+            target_severe = 0.4 + ((threat - 0.68) / 0.32) * 0.2
+            if severe < target_severe:
+                cost += (target_severe - severe) ** 2 * 350
+
+        return cost
+    return WeightedConstraint(
+        name="severe_toxicity_boost_anti_escape",
+        variables=['toxicity', 'severe_toxicity', 'threat', 'insult'],
+        cost_function=cost_function,
+        weight=weight
+    )
+
+
+def create_anti_artificial_increase_constraint(weight: float = 300.0) -> WeightedConstraint:
+    """
+    Prevents artificial increases of threat for non-threatening content
+    """
+    def cost_function(assignment: Dict[str, float]) -> float:
+        threat = assignment.get('threat', 0.0)
+        insult = assignment.get('insult', 0.0)
+
+        cost = 0.0
+
+        # If content is pure insult (high insult, low original threat),
+        # prevent threat from being artificially increased
+        if insult > 0.85 and threat > 0.15:
+            # Exponential penalty for threat inflation
+            penalty = (threat - 0.05) ** 3 * 500  # Higher penalty
+            cost += penalty
 
         return cost
 
     return WeightedConstraint(
-        name="balance_anti_extremes",
-        variables=['threat', 'identity_attack',
-                   'insult', 'severe_toxicity', 'toxicity'],
-        cost_function=cost_fn,
+        name="anti_artificial_increase",
+        variables=['threat', 'insult', 'toxicity'],
+        cost_function=cost_function,
         weight=weight
     )
 
 
-# eliminare
-def create_threat_toxicity_constraint(weight: float = 100.0) -> WeightedConstraint:
+def create_sexual_violence_constraint(weight: float = 500.0) -> WeightedConstraint:
     """
-    High threat should imply high toxicity.
-    Cost increases if threat is high but toxicity is low.
+    Detects sexual violence/assault and enforces high severe_toxicity
     """
-    def cost_fn(assignment: Dict[str, float]) -> float:
+    def cost_function(assignment: Dict[str, float]) -> float:
+        sexual = assignment.get('sexual_explicit', 0.0)
         threat = assignment.get('threat', 0.0)
+        severe = assignment.get('severe_toxicity', 0.0)
         toxicity = assignment.get('toxicity', 0.0)
 
-        if threat >= 0.8:
-            required_toxicity = 0.95
-        elif threat >= 0.5:
-            required_toxicity = 0.85
-        elif threat >= 0.3:
-            required_toxicity = 0.75
-        else:
-            return 0.0  # no constraint if threat is low
+        cost = 0.0
 
-        # Cost is squared difference if toxicity is below required level
-        if toxicity < required_toxicity:
-            return (required_toxicity - toxicity) ** 2
+        # Pattern 1: High sexual + any threat = sexual violence
+        if sexual > 0.7 and threat > 0.1:
+            target_severe = 0.7  # Very high for sexual assault
+            if severe < target_severe:
+                cost += (target_severe - severe) ** 2 * 400
+
+            # Also ensure threat is appropriately high
+            min_threat = 0.6
+            if threat < min_threat:
+                cost += (min_threat - threat) ** 2 * 300
+
+        # Pattern 2: Very high sexual content should have some severe_toxicity
+        elif sexual > 0.8:
+            target_severe = 0.4  # Moderate for explicit sexual content
+            if severe < target_severe:
+                cost += (target_severe - severe) ** 2 * 200
+
+        return cost
+
+    return WeightedConstraint(
+        name="sexual_violence_detection",
+        variables=['sexual_explicit', 'threat', 'severe_toxicity', 'toxicity'],
+        cost_function=cost_function,
+        weight=weight
+    )
+# Higher weight
+
+
+def create_value_protection_constraint(weight: float = 800.0) -> WeightedConstraint:
+    def cost_function(assignment: Dict[str, float]) -> float:
+        toxicity = assignment.get('toxicity', 0.0)
+        threat = assignment.get('threat', 0.0)
+
+        cost = 0.0
+
+        # More aggressive protection with LOWER threshold
+        if threat > 0.60:
+            min_toxicity = 0.85
+            if toxicity < min_toxicity:
+                cost += ((min_toxicity - toxicity) ** 3) * \
+                    1000  # Higher penalty
+
+            min_threat = 0.75
+            if threat < min_threat:
+                cost += ((min_threat - threat) ** 2) * 600
+
+        return cost
+    return WeightedConstraint(
+        name="value_protection_anti_escape",
+        variables=['toxicity', 'threat', 'insult'],
+        cost_function=cost_function,
+        weight=weight
+    )
+
+
+def create_toxicity_safety_constraint(weight: float = 2000.0) -> WeightedConstraint:
+    """
+    SAFETY: Prevent toxicity reduction for extreme content 
+    """
+    def cost_function(assignment: Dict[str, float]) -> float:
+        toxicity = assignment.get('toxicity', 0.0)
+        threat = assignment.get('threat', 0.0)
+        insult = assignment.get('insult', 0.0)
+
+        # For extreme content, toxicity must stay very high
+        if threat > 0.9 and insult > 0.9:
+            min_toxicity = 0.95  # Cannot go below 95%
+            if toxicity < min_toxicity:
+                cost = (min_toxicity - toxicity) ** 2 * 1000
+
+                return cost
+
         return 0.0
 
     return WeightedConstraint(
-        name="threat_implies_toxicity",
-        variables=['threat', 'toxicity'],
-        cost_function=cost_fn,
+        name="toxicity_safety",
+        variables=['toxicity', 'threat', 'insult'],
+        cost_function=cost_function,
         weight=weight
     )
 
 
 def create_consistency_constraint(weight: float = 1000.0) -> WeightedConstraint:
     """
-    Severe toxicity should not exceed general toxicity.
-    High cost for logical inconsistencies.
+    SAFETY CONSTRAINT: Severe cannot exceed general toxicity
     """
-    def cost_fn(assignment: Dict[str, float]) -> float:
+    def cost_function(assignment: Dict[str, float]) -> float:
+        toxicity = assignment.get('toxicity', 0.0)
         severe = assignment.get('severe_toxicity', 0.0)
-        general = assignment.get('toxicity', 0.0)
 
-        if severe > general:
-            return (severe - general) ** 2
+        if severe > toxicity:
+            cost = (severe - toxicity) ** 2 * 1000
+
+            return cost
+
         return 0.0
 
     return WeightedConstraint(
-        name="severe_toxicity_consistency",
-        variables=['severe_toxicity', 'toxicity'],
-        cost_function=cost_fn,
+        name="consistency_check",
+        variables=['toxicity', 'severe_toxicity'],
+        cost_function=cost_function,
         weight=weight
     )
 
 
-def create_hate_speech_enforcement_constraint(weight: float = 150.0) -> WeightedConstraint:
+def create_hate_speech_constraint(weight: float = 400.0) -> WeightedConstraint:
     """
-    Enforce high toxicity for hate speech content.
-    Identity attacks should result in very high toxicity scores.
+    IDENTITY CONSTRAINT: High identity attack needs high toxicity
     """
-    def cost_fn(assignment: Dict[str, float]) -> float:
+    def cost_function(assignment: Dict[str, float]) -> float:
         identity = assignment.get('identity_attack', 0.0)
         toxicity = assignment.get('toxicity', 0.0)
-        insult = assignment.get('insult', 0.0)
 
-        cost = 0.0
+        # Clear rule: identity > 40% needs toxicity > 80%
+        if identity > 0.4:
+            min_toxicity = 0.80
+            if toxicity < min_toxicity:
+                cost = (min_toxicity - toxicity) ** 2 * 300
 
-        # Severe hate speech (identity > 80%)
-        if identity > 0.8:
-            required_toxicity = 0.92  # Must be at least 92%
-            if toxicity < required_toxicity:
-                cost += (required_toxicity - toxicity) ** 2 * 8
+                return cost
 
-        # Moderate hate speech (identity > 60%)
-        elif identity > 0.6:
-            required_toxicity = 0.85  # Must be at least 85%
-            if toxicity < required_toxicity:
-                cost += (required_toxicity - toxicity) ** 2 * 5
-
-        # Combined hate speech + insult (very toxic combination)
-        if identity > 0.7 and insult > 0.8:
-            required_toxicity = 0.95  # Must be at least 95%
-            if toxicity < required_toxicity:
-                cost += (required_toxicity - toxicity) ** 2 * 10
-
-        return cost
+        return 0.0
 
     return WeightedConstraint(
         name="hate_speech_enforcement",
-        variables=['identity_attack', 'toxicity', 'insult'],
-        cost_function=cost_fn,
+        variables=['identity_attack', 'toxicity'],
+        cost_function=cost_function,
         weight=weight
     )
 
 
-def create_hate_speech_severe_constraint(weight: float = 80.0) -> WeightedConstraint:
+def create_sexual_protection_constraint(weight: float = 500.0) -> WeightedConstraint:
     """
-    For hate speech, severe toxicity should be higher.
+    PROTECTION CONSTRAINT: Keep sexual content low when it should be low
     """
-    def cost_fn(assignment: Dict[str, float]) -> float:
-        identity = assignment.get('identity_attack', 0.0)
-        severe = assignment.get('severe_toxicity', 0.0)
-        insult = assignment.get('insult', 0.0)
+    def cost_function(assignment: Dict[str, float]) -> float:
+        sexual = assignment.get('sexual_explicit', 0.0)
+        obscene = assignment.get('obscene', 0.0)
 
-        # If it's hate speech, severe toxicity should be significant
-        if identity > 0.7:
-            min_severe = 0.6  # At least 60% severe toxicity
-            if severe < min_severe:
-                return (min_severe - severe) ** 2 * 3
+        # Simple rule: if obscene is low, sexual should stay low
+        if obscene < 0.2 and sexual > 0.3:
+            cost = (sexual - 0.3) ** 2 * 100
 
-        # Combined identity + insult should have high severe toxicity
-        if identity > 0.5 and insult > 0.8:
-            min_severe = 0.7  # At least 70% severe toxicity
-            if severe < min_severe:
-                return (min_severe - severe) ** 2 * 4
+            return cost
 
         return 0.0
 
     return WeightedConstraint(
-        name="hate_speech_severe_toxicity",
-        variables=['identity_attack', 'severe_toxicity', 'insult'],
-        cost_function=cost_fn,
-        weight=weight
-    )
-
-
-def create_sexual_explicit_protection_constraint(weight: float = 200.0) -> WeightedConstraint:
-    """
-    Protect sexual_explicit from inappropriate increases.
-    If the original text has low sexual content, keep it low.
-    """
-    def cost_fn(assignment: Dict[str, float]) -> float:
-        sexual = assignment.get('sexual_explicit', 0.0)
-        threat = assignment.get('threat', 0.0)
-        identity = assignment.get('identity_attack', 0.0)
-        insult = assignment.get('insult', 0.0)
-
-        # Original sexual content was very low (0.5%)
-        # If current sexual is much higher, penalize heavily
-        cost = 0.0
-
-        # If sexual content jumps above reasonable threshold without justification
-        if sexual > 0.2:  # 20% threshold
-            # Check if there's ANY reason for sexual content to be high
-            text_is_sexual = False  # We don't have access to original text here
-
-            # If no clear sexual indicators, heavily penalize
-            if not text_is_sexual:
-                # Exponential penalty for inappropriate sexual classification
-                cost += (sexual - 0.2) ** 3 * 10
-
-        # Extra protection: if sexual jumps above 50%, massive penalty
-        if sexual > 0.5:
-            cost += (sexual - 0.5) ** 4 * 20
-
-        return cost
-
-    return WeightedConstraint(
-        name="sexual_explicit_protection",
-        variables=['sexual_explicit', 'threat', 'identity_attack', 'insult'],
-        cost_function=cost_fn,
-        weight=weight
-    )
-
-
-def create_low_category_conservation_constraint(weight: float = 100.0) -> WeightedConstraint:
-    """
-    Conserve low scores for categories that were originally low.
-    Prevents the system from artificially inflating unrelated categories.
-    """
-    def cost_fn(assignment: Dict[str, float]) -> float:
-        sexual = assignment.get('sexual_explicit', 0.0)
-        obscene = assignment.get('obscene', 0.0)
-
-        cost = 0.0
-
-        # Conservative approach: if a category was very low, keep it relatively low
-        # Sexual content conservation (original was 0.5%)
-        if sexual > 0.15:  # Don't let it go above 15% without strong reason
-            cost += (sexual - 0.15) ** 2 * 2
-
-        # Obscene content conservation (original was 4.5%)
-        if obscene > 0.25:  # Don't let it go above 25% without strong reason
-            cost += (obscene - 0.25) ** 2 * 1.5
-
-        return cost
-
-    return WeightedConstraint(
-        name="low_category_conservation",
+        name="sexual_content_protection",
         variables=['sexual_explicit', 'obscene'],
-        cost_function=cost_fn,
+        cost_function=cost_function,
         weight=weight
     )
 
 
-def create_sexual_obscene_correlation_constraint(weight: float = 120.0) -> WeightedConstraint:
+def create_low_toxicity_constraint(weight: float = 1000.0) -> WeightedConstraint:
     """
-    Sexual content should correlate with obscene content.
-    Prevents sexual inflation when obscene is low, allows it when obscene is high.
+    PROTECTION CONSTRAINT: Prevent low toxicity from being artificially increased
     """
-    def cost_fn(assignment: Dict[str, float]) -> float:
-        sexual = assignment.get('sexual_explicit', 0.0)
-        obscene = assignment.get('obscene', 0.0)
+    def cost_function(assignment: Dict[str, float]) -> float:
+        toxicity = assignment.get('toxicity', 0.0)
         threat = assignment.get('threat', 0.0)
+
+        # If threat is low, toxicity should not be high
+        if threat < 0.3 and toxicity > 0.6:
+            cost = (toxicity - 0.4) ** 2 * 600
+
+            return cost
+
+        return 0.0
+
+    return WeightedConstraint(
+        name="low_toxicity_protection",
+        variables=['toxicity', 'threat'],
+        cost_function=cost_function,
+        weight=weight
+    )
+
+
+def create_context_constraint(weight: float = 400.0) -> WeightedConstraint:
+    """
+    Adjusts severity based on content context patterns
+    """
+    def cost_function(assignment: Dict[str, float]) -> float:
+        identity = assignment.get('identity_attack', 0.0)
+        threat = assignment.get('threat', 0.0)
+        severe = assignment.get('severe_toxicity', 0.0)
 
         cost = 0.0
 
-        # Calculate reasonable sexual limit based on obscene content
-        if obscene > 0.8:
-            # High obscene → allow high sexual (like your test case)
-            max_reasonable_sexual = 0.95  # Allow up to 95%
-        elif obscene > 0.5:
-            # Medium obscene → allow medium sexual
-            max_reasonable_sexual = 0.6   # Allow up to 60%
-        elif obscene > 0.2:
-            # Low obscene → allow some sexual
-            max_reasonable_sexual = 0.3   # Allow up to 30%
-        else:
-            # Very low obscene → minimal sexual
-            max_reasonable_sexual = 0.15  # Allow up to 15%
+        # High identity + high threat = systemic threat (very dangerous)
+        if identity > 0.4 and threat > 0.5:
+            target_severe = 0.8  # Maximum severity
+            if severe < target_severe:
+                cost += (target_severe - severe) ** 2 * 600
 
-        # Special case: if threat is very high but obscene is low, be more restrictive
-        if threat > 0.8 and obscene < 0.3:
-            max_reasonable_sexual = 0.1  # Only 10% for high-threat, low-obscene
+        return cost
+    return WeightedConstraint(
+        name="context_protection",
+        variables=['severe_toxicity', 'identity_attack', 'threat'],
+        cost_function=cost_function,
+        weight=weight
+    )
 
-        # Apply penalty if sexual exceeds reasonable limit
-        if sexual > max_reasonable_sexual:
-            excess = sexual - max_reasonable_sexual
-            # Stronger penalty for low-obscene cases
-            penalty_strength = 3 if obscene < 0.3 else 1
-            cost += excess ** 2 * penalty_strength
+
+def create_quality_constraint(weight: float = 150.0) -> WeightedConstraint:
+    """
+    Prevents over-classification of low-quality but harmless content
+    """
+    def cost_function(assignment: Dict[str, float]) -> float:
+        toxicity = assignment.get('toxicity', 0.0)
+        insult = assignment.get('insult', 0.0)
+        threat = assignment.get('threat', 0.0)
+        severe = assignment.get('severe_toxicity', 0.0)
+
+        cost = 0.0
+
+        # If all metrics are low except toxicity, might be false positive
+        if (toxicity > 0.7 and insult < 0.1 and
+                threat < 0.1 and severe > 0.3):
+            # Likely over-classification
+            cost += (severe - 0.1) ** 2 * 100
 
         return cost
 
     return WeightedConstraint(
-        name="sexual_obscene_correlation",
-        variables=['sexual_explicit', 'obscene', 'threat'],
-        cost_function=cost_fn,
+        name="quality_protection",
+        variables=['toxicity', 'insult', 'threat', 'severe_toxicity'],
+        cost_function=cost_function,
         weight=weight
     )

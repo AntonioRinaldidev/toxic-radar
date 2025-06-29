@@ -37,31 +37,10 @@ class TextRequest(BaseModel):
         }
 
 
-class BatchTextRequest(BaseModel):
-    texts: List[str]
-    max_batch_size: Optional[int] = 32
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "texts": ["Hello world", "You're terrible"],
-                "max_batch_size": 32
-            }
-        }
-
-
 class ClassificationResponse(BaseModel):
     is_success: bool
     message: str
     data: Optional[Dict[str, float]] = None
-
-
-class BatchClassificationResponse(BaseModel):
-    is_success: bool
-    message: str
-    data: Optional[List[Dict[str, float]]] = None
-    processed_count: int
-    failed_count: int
 
 
 def validate_text(text: str) -> str:
@@ -139,83 +118,6 @@ def classify_text(request: TextRequest):
             is_success=False,
             message=f"Classification failed: {str(e)}",
             data=None
-        )
-
-
-@app.post("/classify_batch", response_model=BatchClassificationResponse)
-def classify_batch(request: BatchTextRequest):
-    """
-    Classify multiple texts for toxicity in batch.
-
-    Args:
-        request: Batch text classification request
-
-    Returns:
-        Batch classification results
-    """
-    if not request.texts:
-        raise HTTPException(status_code=400, detail="No texts provided")
-
-    if len(request.texts) > request.max_batch_size:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Batch size {len(request.texts)} exceeds maximum {request.max_batch_size}"
-        )
-
-    results = []
-    failed_count = 0
-
-    try:
-        # Validate all texts first
-        validated_texts = []
-        for i, text in enumerate(request.texts):
-            try:
-                validated_texts.append(validate_text(text))
-            except ValueError as e:
-                logger.warning(f"Text {i} validation failed: {e}")
-                validated_texts.append(None)
-                failed_count += 1
-
-        # Process valid texts in batch
-        if validated_texts:
-            valid_texts = [t for t in validated_texts if t is not None]
-            if valid_texts:
-                batch_results = model.predict(valid_texts)
-
-                # Convert batch results to list of dictionaries
-                batch_dicts = [
-                    {label: batch_results[label][i] for label in batch_results}
-                    for i in range(len(valid_texts))
-                ]
-
-                # Merge results back with None placeholders
-                result_idx = 0
-                for validated_text in validated_texts:
-                    if validated_text is not None:
-                        results.append(
-                            {k: float(v) for k, v in batch_dicts[result_idx].items()})
-                        result_idx += 1
-                    else:
-                        results.append(None)
-
-        processed_count = len(request.texts) - failed_count
-
-        return BatchClassificationResponse(
-            is_success=True,
-            message=f"Batch classification completed. {processed_count} successful, {failed_count} failed.",
-            data=results,
-            processed_count=processed_count,
-            failed_count=failed_count
-        )
-
-    except Exception as e:
-        logger.error(f"Batch classification error: {e}")
-        return BatchClassificationResponse(
-            is_success=False,
-            message=f"Batch classification failed: {str(e)}",
-            data=None,
-            processed_count=0,
-            failed_count=len(request.texts)
         )
 
 
@@ -304,7 +206,6 @@ def get_info():
         "device": device,
         "endpoints": [
             "/classify - POST: Classify single text",
-            "/classify_batch - POST: Classify multiple texts",
             "/health - GET: Service status",
             "/info - GET: Service information"
         ],

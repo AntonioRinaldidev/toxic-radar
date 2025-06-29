@@ -301,75 +301,6 @@ def _adaptive_cleanup(system_config):
         import gc
         gc.collect()
 
-# Batch processing with universal optimization
-
-
-def generate_batch_universal(
-    texts: List[str],
-    num_candidates_each: Optional[int] = None,
-    **kwargs
-) -> List[List[str]]:
-    """
-    Universal batch processing optimized for any system.
-    """
-    system_config = get_system_config()
-
-    if num_candidates_each is None:
-        num_candidates_each = min(3, system_config.optimal_max_candidates)
-
-    logger.info(
-        f"🔄 Processing batch of {len(texts)} texts on {system_config.device.upper()}")
-
-    # Determine optimal batch processing strategy
-    max_workers = min(system_config.optimal_workers, len(texts))
-
-    if system_config.device == "cuda" and system_config.gpu_memory_gb > 12:
-        # High-end GPU: process multiple texts in parallel
-        chunk_size = min(4, len(texts))
-    elif system_config.device in ["cuda", "mps"]:
-        # Mid-range GPU/MPS: moderate parallelization
-        chunk_size = min(2, len(texts))
-    else:
-        # CPU: conservative parallelization
-        chunk_size = 1
-        max_workers = min(max_workers, 2)
-
-    # Process in chunks
-    results = []
-    for i in range(0, len(texts), chunk_size):
-        chunk = texts[i:i + chunk_size]
-
-        if len(chunk) == 1:
-            # Single text processing
-            result = generate_paraphrases_universal(
-                chunk[0], num_candidates_each, **kwargs)
-            results.append(result)
-        else:
-            # Parallel processing within chunk
-            with ThreadPoolExecutor(max_workers=min(max_workers, len(chunk))) as executor:
-                futures = [
-                    executor.submit(generate_paraphrases_universal,
-                                    text, num_candidates_each, **kwargs)
-                    for text in chunk
-                ]
-
-                chunk_results = []
-                for j, future in enumerate(futures):
-                    try:
-                        result = future.result(timeout=120)
-                        chunk_results.append(result)
-                        logger.debug(f"✅ Completed {i+j+1}/{len(texts)}")
-                    except Exception as e:
-                        logger.error(f"❌ Failed processing text {i+j+1}: {e}")
-                        chunk_results.append([])
-
-                results.extend(chunk_results)
-
-        # Adaptive cleanup between chunks
-        if chunk_size > 1:
-            _adaptive_cleanup(system_config)
-
-    return results
 
 # Memory-efficient mode for resource-constrained systems
 
@@ -470,25 +401,3 @@ def generate_paraphrases(
         return generate_paraphrases_quality(text, num_return_sequences, **kwargs)
     else:  # universal or any other mode
         return generate_paraphrases_universal(text, num_return_sequences, **kwargs)
-
-# Batch processing main function
-
-
-def generate_paraphrases_batch(
-    texts: List[str],
-    num_candidates_each: int = 3,
-    mode: str = "auto",
-    **kwargs
-) -> List[List[str]]:
-    """
-    Batch processing with automatic system adaptation.
-    """
-    if mode == "auto":
-        return generate_batch_universal(texts, num_candidates_each, **kwargs)
-    else:
-        # Process individually with specified mode
-        return [
-            generate_paraphrases(
-                text, num_candidates_each, mode=mode, **kwargs)
-            for text in texts
-        ]

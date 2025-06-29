@@ -5,12 +5,11 @@ from pydantic import BaseModel
 from typing import Dict
 from AI.reasoning.scsp import (
     ToxicitySCSP,
+    create_threat_detection_constraint,
+    create_severe_toxicity_boost_constraint,
     create_consistency_constraint,
-    create_toxicity_target_constraint,
-    create_severe_toxicity_target_constraint,
-    create_insult_target_constraint,
-    create_balance_constraint, create_hate_speech_enforcement_constraint,
-    create_hate_speech_severe_constraint, create_sexual_obscene_correlation_constraint
+    create_hate_speech_constraint,
+    create_sexual_protection_constraint, create_toxicity_safety_constraint, create_value_protection_constraint, create_anti_artificial_increase_constraint, create_sexual_violence_constraint, create_low_toxicity_constraint, create_context_constraint, create_quality_constraint
 )
 
 app = FastAPI(title="ToxicRadar Reasoning Module - SCSP Enhanced")
@@ -25,29 +24,36 @@ _scsp_instance = None
 
 
 def get_scsp_instance():
-    """Get or create SCSP instance with all constraints"""
+    """Get or create enhanced SCSP instance"""
     global _scsp_instance
 
     if _scsp_instance is None:
         _scsp_instance = ToxicitySCSP()
 
-        # Add all constraints with proper priority (higher weight = higher priority)
         _scsp_instance.add_constraint(
-            create_consistency_constraint(weight=1000))  # Highest priority
+            create_toxicity_safety_constraint(weight=2000))
         _scsp_instance.add_constraint(
-            create_hate_speech_enforcement_constraint(weight=150))  # High priority
+            create_consistency_constraint(weight=1200))
         _scsp_instance.add_constraint(
-            create_sexual_obscene_correlation_constraint(weight=100))    # Medium-high priority
+            create_low_toxicity_constraint(weight=1000))
         _scsp_instance.add_constraint(
-            create_hate_speech_severe_constraint(weight=80))  # Medium-high priority
+            create_value_protection_constraint(weight=800))
         _scsp_instance.add_constraint(
-            create_toxicity_target_constraint(weight=50))
+            create_sexual_violence_constraint(weight=500))
         _scsp_instance.add_constraint(
-            create_severe_toxicity_target_constraint(weight=30))
+            create_sexual_protection_constraint(weight=500))
+        _scsp_instance.add_constraint(create_context_constraint(weight=400))
         _scsp_instance.add_constraint(
-            create_insult_target_constraint(weight=20))
+            create_hate_speech_constraint(weight=400))
         _scsp_instance.add_constraint(
-            create_balance_constraint(weight=10))
+            create_anti_artificial_increase_constraint(weight=350))
+        _scsp_instance.add_constraint(
+            create_threat_detection_constraint(weight=300))
+        _scsp_instance.add_constraint(
+            create_severe_toxicity_boost_constraint(weight=250))
+        _scsp_instance.add_constraint(create_quality_constraint(weight=150))
+
+        print("✅ Enhanced Hill Climbing SCSP initialized with threat detection")
 
     return _scsp_instance
 

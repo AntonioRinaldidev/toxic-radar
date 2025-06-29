@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 import time
 import logging
 from AI.paraphraser.voting import custom_utility_score
-from AI.paraphraser.generator import generate_paraphrases, generate_paraphrases_batch
+from AI.paraphraser.generator import generate_paraphrases
 from AI.paraphraser.scorer import score_toxicity, taunt_equivalence_score, score_fluency
 from AI.reasoning.reasoning import apply_reasoning
 from AI.core.system_detector import get_system_config, get_api_config, log_system_info
@@ -64,24 +64,6 @@ class ParaphraseRequest(BaseModel):
         }
 
 
-class BatchParaphraseRequest(BaseModel):
-    texts: List[str] = Field(..., min_items=1,
-                             max_items=api_config["max_batch_size"])
-    num_candidates_each: int = Field(
-        default=3, ge=1, le=api_config["max_candidates"])
-    mode: str = Field(
-        default="auto", pattern="^(auto|efficient|quality|universal)$")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "texts": ["You're terrible!", "This is awful!"],
-                "num_candidates_each": 3,
-                "mode": "auto"
-            }
-        }
-
-
 class ParaphraseCandidate(BaseModel):
     text: str
     toxicity: float
@@ -97,22 +79,10 @@ class ParaphraseResponse(BaseModel):
     system_info: Dict[str, str]
 
 
-class BatchParaphraseResponse(BaseModel):
-    results: List[ParaphraseResponse]
-    batch_metadata: Dict[str, Any]
-    system_info: Dict[str, str]
-
-
 class AnalysisResponse(BaseModel):
     text: str
     analysis: Dict[str, Any]
     metadata: Dict[str, Any]
-    system_info: Dict[str, str]
-
-
-class BatchAnalysisResponse(BaseModel):
-    results: List[AnalysisResponse]
-    batch_metadata: Dict[str, Any]
     system_info: Dict[str, str]
 
 
@@ -123,6 +93,82 @@ class SystemInfoResponse(BaseModel):
     performance_stats: Dict[str, Any]
 
 # Utility Functions
+
+
+def get_fallback_message(original_toxicity: float) -> str:
+    """
+    Return appropriate fallback message based on original toxicity level
+
+    Args:
+        original_toxicity: Toxicity score of the original text (0.0 to 1.0)
+
+    Returns:
+        Appropriate fallback message in English
+    """
+    if original_toxicity >= 0.7:  # High toxicity threshold
+        return "You should reconsider saying something like that"
+    elif original_toxicity <= 0.3:  # Low toxicity threshold
+        return "You don't need to reduce toxicity of this phrase"
+    else:  # Medium toxicity - still suggest reconsideration
+        return "You should reconsider saying something like that"
+
+
+def create_fallback_response(
+    original_text: str,
+    original_toxicity: float,
+    processing_time: float,
+    generation_mode: str
+) -> ParaphraseResponse:
+    """
+    Create a fallback response when paraphrasing fails or isn't needed
+
+    Args:
+        original_text: The original input text
+        original_toxicity: Toxicity score of the original text
+        processing_time: Time taken for processing
+        generation_mode: The generation mode used
+
+    Returns:
+        ParaphraseResponse with fallback message
+    """
+    fallback_message = get_fallback_message(original_toxicity)
+
+    # Create a single fallback candidate
+    fallback_candidate = ParaphraseCandidate(
+        text=fallback_message,
+        toxicity=0.1,  # Fallback messages are designed to be non-toxic
+        similarity=0.0,  # Fallback messages are completely different from original
+        fluency=1.0,    # Fallback messages are perfectly fluent
+        rank=1
+    )
+
+    # Determine the fallback reason
+    if original_toxicity <= 0.3:
+        fallback_reason = "low_toxicity_no_reduction_needed"
+    elif original_toxicity >= 0.9:
+        fallback_reason = "high_toxicity_paraphrasing_failed"
+    else:
+        fallback_reason = "paraphrasing_failed"
+
+    metadata = {
+        "processing_time_seconds": round(processing_time, 3),
+        "original_toxicity": round(original_toxicity, 3),
+        "best_candidate_toxicity": 0.1,  # Fallback message toxicity
+        "toxicity_reduction": round(max(0.0, original_toxicity - 0.1), 3),
+        "generation_mode": generation_mode,
+        "candidates_generated": 0,
+        "candidates_returned": 1,
+        "fallback_used": True,
+        "fallback_reason": fallback_reason,
+        "fallback_message": fallback_message
+    }
+
+    return ParaphraseResponse(
+        original=original_text,
+        candidates=[fallback_candidate],
+        metadata=metadata,
+        system_info=get_system_metadata()
+    )
 
 
 def extract_toxicity_scores(adjusted_results: List[Dict[str, Any]]) -> List[float]:
@@ -194,8 +240,8 @@ async def paraphrase(request: ParaphraseRequest):
     validate_request(request)
 
     try:
-        # ⭐ Step 0: Analyze ORIGINAL text with SCP reasoning FIRST
-        logger.info("🧠 Analyzing original text with SCP reasoning...")
+
+        logger.info("Analyzing original text with SCP reasoning...")
         original_raw_toxicity = score_toxicity([request.text])[0]
         original_reasoning_result = apply_reasoning(original_raw_toxicity)
         original_adjusted_labels = original_reasoning_result.get(
@@ -204,8 +250,17 @@ async def paraphrase(request: ParaphraseRequest):
             'toxicity', 0.0)
 
         logger.info(
-            f"📊 Original toxicity: {original_raw_toxicity.get('toxicity', 0.0):.3f} → {original_adjusted_toxicity:.3f} (after reasoning)")
+            f"Original toxicity: {original_raw_toxicity.get('toxicity', 0.0):.3f} → {original_adjusted_toxicity:.3f} (after reasoning)")
 
+        if original_adjusted_toxicity <= 0.3:
+            logger.info("💡 Text has low toxicity, returning fallback message")
+            processing_time = time.time() - start_time
+            return create_fallback_response(
+                request.text,
+                original_adjusted_toxicity,
+                processing_time,
+                request.mode
+            )
         # Generate paraphrases with system-adaptive parameters
         kwargs = request.custom_params or {}
         candidates = generate_paraphrases(
@@ -216,10 +271,14 @@ async def paraphrase(request: ParaphraseRequest):
         )
 
         if not candidates:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Unable to generate valid paraphrases. The text might be too toxic "
-                       f"or the {system_config.device.upper()} couldn't find suitable alternatives."
+            logger.warning(
+                "⚠️ No candidates generated, returning fallback message")
+            processing_time = time.time() - start_time
+            return create_fallback_response(
+                request.text,
+                original_adjusted_toxicity,
+                processing_time,
+                request.mode
             )
 
         # Score and rank candidates
@@ -243,26 +302,36 @@ async def paraphrase(request: ParaphraseRequest):
         ranked_candidates = format_candidates(
             candidates, adjusted_toxicity_scores, similarity_scores, fluency_scores, ranking
         )
+        best_toxicity = ranked_candidates[0].toxicity if ranked_candidates else 1.0
+        toxicity_improvement = original_adjusted_toxicity - best_toxicity
+
+        # If no significant improvement and original toxicity is high, return fallback
+        if toxicity_improvement < 0.1 and original_adjusted_toxicity >= 0.7:
+            logger.warning(
+                f"⚠️ Insufficient toxicity improvement ({toxicity_improvement:.3f}), returning fallback message")
+            processing_time = time.time() - start_time
+            return create_fallback_response(
+                request.text,
+                original_adjusted_toxicity,
+                processing_time,
+                request.mode
+            )
 
         # Calculate metadata with ADJUSTED scores for consistency
         processing_time = time.time() - start_time
-        best_toxicity = ranked_candidates[0].toxicity if ranked_candidates else 1.0
 
         metadata = {
             "processing_time_seconds": round(processing_time, 3),
-            # ⭐ NEW: raw score
             "original_toxicity_raw": round(original_raw_toxicity.get('toxicity', 0.0), 3),
-            # ⭐ CHANGED: now adjusted
             "original_toxicity": round(original_adjusted_toxicity, 3),
             "best_candidate_toxicity": round(best_toxicity, 3),
-            # ⭐ FIXED: adjusted vs adjusted
             "toxicity_reduction": round(max(0.0, original_adjusted_toxicity - best_toxicity), 3),
             "reasoning_rules_applied": len([r for r in adjusted_results if r.get('explanations')]),
             "generation_mode": request.mode,
             "candidates_generated": len(candidates),
             "candidates_returned": len(ranked_candidates),
-            # ⭐ NEW: flag to indicate reasoning was applied
-            "reasoning_applied_to_original": True
+            "reasoning_applied_to_original": True,
+            "fallback_used": False  # Normal paraphrasing was successful
         }
 
         return ParaphraseResponse(
@@ -276,112 +345,21 @@ async def paraphrase(request: ParaphraseRequest):
         raise
     except Exception as e:
         logger.error(f"❌ Paraphrasing failed: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Internal error: {str(e)}")
-
-
-@app.post("/paraphrase_batch", response_model=BatchParaphraseResponse)
-async def paraphrase_batch(request: BatchParaphraseRequest):
-    """
-    Batch paraphrase processing with universal optimization.
-    """
-    start_time = time.time()
-
-    if len(request.texts) > api_config["max_batch_size"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Batch size too large. Maximum for this system: {api_config['max_batch_size']}"
-        )
-
-    try:
-        # Process batch with system optimization
-        batch_results = generate_paraphrases_batch(
-            texts=request.texts,
-            num_candidates_each=request.num_candidates_each,
-            mode=request.mode
-        )
-
-        # Process each result
-        results = []
-        total_candidates = 0
-        successful_requests = 0
-
-        for i, (original_text, candidates) in enumerate(zip(request.texts, batch_results)):
-            if candidates:
-                # Process like single request
-                raw_toxicity_scores = score_toxicity(candidates)
-                adjusted_results = [apply_reasoning(
-                    raw_scores) for raw_scores in raw_toxicity_scores]
-                adjusted_toxicity_scores = extract_toxicity_scores(
-                    adjusted_results)
-
-                similarity_scores = taunt_equivalence_score(
-                    original_text, candidates)
-                fluency_scores = score_fluency(candidates)
-
-                score_lists = {
-                    "toxicity": adjusted_toxicity_scores,
-                    "similarity": similarity_scores,
-                    "fluency": fluency_scores
-                }
-                ranking = custom_utility_score(score_lists)
-
-                ranked_candidates = format_candidates(
-                    candidates, adjusted_toxicity_scores, similarity_scores, fluency_scores, ranking
-                )
-
-                original_toxicity = score_toxicity([original_text])[
-                    0].get('toxicity', 0.0)
-                best_toxicity = ranked_candidates[0].toxicity if ranked_candidates else 1.0
-
-                metadata = {
-                    "original_toxicity": round(original_toxicity, 3),
-                    "best_candidate_toxicity": round(best_toxicity, 3),
-                    "toxicity_reduction": round(max(0.0, original_toxicity - best_toxicity), 3),
-                    "candidates_generated": len(candidates)
-                }
-
-                total_candidates += len(candidates)
-                successful_requests += 1
-            else:
-                ranked_candidates = []
-                metadata = {
-                    "original_toxicity": 0.0,
-                    "best_candidate_toxicity": 1.0,
-                    "toxicity_reduction": 0.0,
-                    "candidates_generated": 0,
-                    "error": "No valid candidates generated"
-                }
-
-            results.append(ParaphraseResponse(
-                original=original_text,
-                candidates=ranked_candidates,
-                metadata=metadata,
-                system_info=get_system_metadata()
-            ))
-
-        # Batch metadata
-        processing_time = time.time() - start_time
-        batch_metadata = {
-            "processing_time_seconds": round(processing_time, 3),
-            "total_requests": len(request.texts),
-            "successful_requests": successful_requests,
-            "failed_requests": len(request.texts) - successful_requests,
-            "total_candidates_generated": total_candidates,
-            "average_processing_time": round(processing_time / len(request.texts), 3),
-            "generation_mode": request.mode
-        }
-
-        return BatchParaphraseResponse(
-            results=results,
-            batch_metadata=batch_metadata,
-            system_info=get_system_metadata()
-        )
-
-    except Exception as e:
-        logger.error(f"❌ Batch paraphrasing failed: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Batch processing error: {str(e)}")
+        # Return fallback message even on unexpected errors
+        try:
+            processing_time = time.time() - start_time
+            # Try to get original toxicity, default to high if failed
+            original_toxicity = original_adjusted_toxicity if 'original_adjusted_toxicity' in locals() else 0.8
+            return create_fallback_response(
+                request.text,
+                original_toxicity,
+                processing_time,
+                request.mode
+            )
+        except:
+            # If even fallback fails, raise the original error
+            raise HTTPException(
+                status_code=500, detail=f"Internal error: {str(e)}")
 
 
 @app.post("/paraphrase_advanced")
@@ -550,117 +528,6 @@ async def analyze_text(request: ParaphraseRequest):
         )
 
 
-@app.post("/analyze_batch", response_model=BatchAnalysisResponse)
-async def analyze_batch(request: BatchParaphraseRequest):
-    """
-    Batch text analysis: Classification + Reasoning for multiple texts.
-    """
-    start_time = time.time()
-
-    if len(request.texts) > api_config["max_batch_size"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Batch size too large. Maximum: {api_config['max_batch_size']}"
-        )
-
-    try:
-        logger.info(f"🔍 Analyzing batch of {len(request.texts)} texts")
-
-        # Step 1: Batch toxicity classification
-        raw_toxicity_batch = score_toxicity(request.texts)
-
-        # Step 2: Apply reasoning to each result
-        analysis_results = []
-        rules_applied_total = 0
-
-        for i, (text, raw_labels) in enumerate(zip(request.texts, raw_toxicity_batch)):
-            try:
-                reasoning_result = apply_reasoning(raw_labels)
-                adjusted_labels = reasoning_result.get(
-                    'adjusted_labels', raw_labels)
-                explanations = reasoning_result.get('explanations', [])
-
-                toxicity_change = raw_labels.get(
-                    'toxicity', 0.0) - adjusted_labels.get('toxicity', 0.0)
-                rules_applied_total += len(explanations)
-
-                analysis_data = {
-                    "raw_classification": {
-                        label: round(score, 3) for label, score in raw_labels.items()
-                    },
-                    "adjusted_classification": {
-                        label: round(score, 3) for label, score in adjusted_labels.items()
-                    },
-                    "reasoning_explanations": explanations,
-                    "summary": {
-                        "is_toxic": adjusted_labels.get('toxicity', 0.0) > 0.5,
-                        "toxicity_level": "high" if adjusted_labels.get('toxicity', 0.0) > 0.7
-                        else "medium" if adjusted_labels.get('toxicity', 0.0) > 0.3
-                        else "low",
-                        "main_issues": [
-                            label for label, score in adjusted_labels.items()
-                            if score > 0.5 and label != 'toxicity'
-                        ],
-                        "reasoning_applied": len(explanations) > 0,
-                        "toxicity_adjustment": round(toxicity_change, 3)
-                    }
-                }
-
-                metadata = {
-                    "rules_applied": len(explanations),
-                    "analysis_mode": "classification_with_reasoning"
-                }
-
-                result = AnalysisResponse(
-                    text=text,
-                    analysis=analysis_data,
-                    metadata=metadata,
-                    system_info=get_system_metadata()
-                )
-                analysis_results.append(result)
-
-            except Exception as e:
-                logger.error(f"❌ Failed to analyze text {i+1}: {e}")
-                # Add error result
-                error_result = AnalysisResponse(
-                    text=text,
-                    analysis={"error": str(e)},
-                    metadata={"error": True},
-                    system_info=get_system_metadata()
-                )
-                analysis_results.append(error_result)
-
-        processing_time = time.time() - start_time
-        successful_analyses = len(
-            [r for r in analysis_results if not r.metadata.get('error')])
-
-        batch_metadata = {
-            "processing_time_seconds": round(processing_time, 3),
-            "total_texts": len(request.texts),
-            "successful_analyses": successful_analyses,
-            "failed_analyses": len(request.texts) - successful_analyses,
-            "total_rules_applied": rules_applied_total,
-            "average_processing_time": round(processing_time / len(request.texts), 3),
-            "analysis_mode": "batch_classification_with_reasoning"
-        }
-
-        logger.info(
-            f"✅ Batch analysis completed: {successful_analyses}/{len(request.texts)} successful")
-
-        return BatchAnalysisResponse(
-            results=analysis_results,
-            batch_metadata=batch_metadata,
-            system_info=get_system_metadata()
-        )
-
-    except Exception as e:
-        logger.error(f"❌ Batch analysis failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Batch analysis error: {str(e)}"
-        )
-
-
 # System Information Endpoints
 
 
@@ -766,7 +633,6 @@ async def get_capabilities():
         "max_text_length": 5000 if system_config.device == "cpu" else 10000,
         "supported_devices": [system_config.device],
         "auto_optimization": True,
-        "batch_processing": True,
         "concurrent_requests": True,
         "reasoning_engine": True,
         "similarity_scoring": True,
@@ -801,7 +667,6 @@ async def docs_info():
     return {
         "endpoints": {
             "/paraphrase": "Main paraphrasing endpoint",
-            "/paraphrase_batch": "Batch processing endpoint",
             "/paraphrase_advanced": "Advanced paraphrasing with detailed controls",
             "/health": "System health check",
             "/system_info": "Comprehensive system information",
