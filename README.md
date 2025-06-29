@@ -10,7 +10,7 @@ cd ToxicRadar
 pip install -r AI/requirements.txt
 python -m AI.gui.ToxicRadarGui
 ```
-Analyze and paraphrase a single phrase. If you try to re analyze or re paraphrase the same sentence, it won't work.
+Analyze and paraphrase a single phrase. If you try to re analyze or re paraphrase the same sentence, it won't do it since You already have the process response.
 ### Option 2: API Demo (Recommended)
 ```bash
 # Terminal 1: Start API
