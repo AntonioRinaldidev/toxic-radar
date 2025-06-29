@@ -1,10 +1,12 @@
+# ToxicRadar AI
+
 **Intelligent toxicity detection, analysis, and mitigation system using transformer-based models with universal system optimization.**
 
 ## 🎯 Overview
 
 The AI section provides a complete pipeline for processing toxic language through:
 - **Classification**: Advanced toxicity detection using Detoxify
-- **Reasoning**: Soft-CSP based logical refinement with weighted constraints
+- **Reasoning**: Advanced Soft-CSP with 12+ specialized constraints using WeightedSemiring and Hill Climbing optimization
 - **Paraphrasing**: Intelligent text rewriting with multi-criteria ranking
 - **Analysis**: Full pipeline orchestration
 
@@ -153,21 +155,18 @@ flowchart TD
     style Response fill:#D50000,stroke:#333,stroke-width:2px
 ```
     
-
-
-
 ### Processing Pipeline
 
 For each text input, the system:
 
 1. **🔍 Classification**: Detoxify model detects toxicity levels
-2. **🧮 Reasoning**: Rule engine applies logical constraints
+2. **🧮 Reasoning**: SCSP engine applies weighted constraint optimization
 3. **🎯 Generation**: T5 model creates multiple paraphrases  
 4. **📊 Scoring**: Each candidate scored for:
-   - **Toxicity**: Using Detoxify + reasoning rules
+   - **Toxicity**: Using Detoxify + SCSP reasoning
    - **Similarity**: Semantic similarity to original (Sentence-BERT)
    - **Fluency**: Language quality (T5 perplexity)
-5. **🏆 Ranking**: Weighted utility score: `(1-toxicity)×0.5 + similarity×0.3 + fluency×0.2`
+5. **🏆 Ranking**: Adaptive weighted utility scoring with context-dependent weights
 6. **✨ Response**: Best candidates returned with detailed metadata
 
 ## 📁 Project Structure
@@ -186,14 +185,14 @@ AI/
 ├── reasoning/
 │   ├── __init__.py
 │   ├── reasoning.py              # Soft-CSP Reasoning service
-│   └── logic.py                  # WeightedSemiring implementation
+│   └── scsp.py                   # WeightedSemiring implementation
 ├── paraphraser/
 │   ├── __init__.py
 │   ├── service.py                # Main paraphrasing service
 │   ├── shared_model.py           # Universal model manager
 │   ├── generator.py              # Text generation
 │   ├── scorer.py                 # Multi-criteria scoring
-│   └── voting.py                 # Ranking algorithms
+│   └── voting.py                 # Utility scoring algorithms
 └── analyze/
     ├── __init__.py
     └── service.py                # Analysis orchestrator
@@ -206,7 +205,6 @@ AI/
 
 ```python
 POST /classify              # Single text classification
-
 GET  /health               # Service status
 GET  /info                 # Service information
 ```
@@ -222,13 +220,15 @@ curl -X POST "http://localhost:8001/classify" \
 **Port**: 8002
 
 ```python
-POST /reason               # Apply logical rules to toxicity scores
+POST /reason               # Apply SCSP optimization to toxicity scores
+GET  /scsp_info           # Complete constraint system information  
+GET  /health              # Service status with constraint count
 ```
 
-**Rule Examples**:
-- `identity_attack > 0.1` → Force `toxicity = 0.9`
-- `severe_toxicity > 0.3` → Ensure `toxicity ≥ severe_toxicity`
-- `threat > 0.3` → Set `toxicity = 0.8`
+**Enhanced SCSP System:**
+- 12 specialized constraints with priority weights (150-2000)
+- Hill Climbing solver with multi-step exploration
+- WeightedSemiring optimization `(ℝ⁺, +, ×, 0, 1)`
 
 ### 3. Paraphrasing Service (`service.py`) 
 **Port**: 8000 (Main Service)
@@ -274,7 +274,6 @@ The system automatically detects and optimizes for:
 - Multi-threading optimization
 - Conservative memory usage
 
-
 ### Performance Adaptations
 
 | System Type | Batch Size | Workers | Max Candidates | Memory Mode |
@@ -285,6 +284,28 @@ The system automatically detects and optimizes for:
 | High-end CPU (≥32GB RAM) | 8 | 8 | 15 | Float32 |
 | Standard CPU (16-32GB) | 4 | 4 | 10 | Float32 |
 | Low-end CPU (<16GB) | 2 | 2 | 6 | Float32 |
+
+### SCSP Constraint Hierarchy
+
+The system uses a carefully tuned hierarchy of constraints to ensure safe and accurate toxicity reasoning:
+
+| Priority | Weight Range | Constraint Type | Purpose |
+|----------|-------------|-----------------|---------|
+| **Critical** | 1000-2000 | Safety & Consistency | Prevent dangerous misclassifications |
+| **High** | 500-800 | Domain Protection | Specialized content type handling |
+| **Medium** | 300-450 | Pattern Detection | Advanced threat and context recognition |
+| **Low** | 150-250 | Quality Assurance | Output refinement and optimization |
+
+**Constraint Interaction Example:**
+```python
+# High toxicity + insult detected → threat_detection activates
+if toxicity > 0.95 and insult > 0.80:
+    min_threat = 0.4  # Force threat recognition
+    
+# Extreme content safety → toxicity_safety prevents reduction  
+if threat > 0.9 and insult > 0.9:
+    min_toxicity = 0.95  # Cannot go below 95%
+```
 
 ## 🧠 Advanced Features
 
@@ -304,32 +325,65 @@ class WeightedSemiring:
     def aggregate(a: float, b: float) -> float:
         """Aggregate operation (⊗): product of weights"""
         return a * b
+```
 
-### Multi-Criteria Ranking
+**Enhanced Constraint System:**
+- **Safety Constraints (High Priority 800-2000)**:
+  - `toxicity_safety_constraint` (2000): Prevents dangerous toxicity reduction
+  - `consistency_constraint` (1200): Ensures severe_toxicity ≤ toxicity
+  - `low_toxicity_constraint` (1000): Handles edge cases for minimal toxicity
+  - `value_protection_constraint` (800): Anti-escape protection for critical values
 
-Candidates ranked using democratic voting principles:
+- **Domain-Specific Constraints (Medium Priority 300-500)**:
+  - `sexual_violence_constraint` (500): Specialized sexual violence detection
+  - `sexual_protection_constraint` (500): General sexual content protection  
+  - `hate_speech_constraint` (400): Hate speech pattern recognition
+  - `context_constraint` (400): Contextual consistency enforcement
+  - `anti_artificial_increase_constraint` (350): Prevents artificial inflation
+  - `threat_detection_constraint` (300): Advanced threat pattern recognition
+
+- **Quality Constraints (Low Priority 150-250)**:
+  - `severe_toxicity_boost_constraint` (250): Amplifies severe signals
+  - `quality_constraint` (150): Overall output quality assurance
+
+**Hill Climbing Solver:**
+```python
+def solve(self, initial_assignment: Dict[str, float], 
+          step_size: float = 0.02, max_iter: int = 1000):
+    """Enhanced Hill Climbing with multi-step exploration"""
+    # Multi-granularity exploration: [step_size, step_size*2, step_size*0.5]
+    # Convergence detection with cost monitoring
+    # Bounds validation [0.0, 1.0] for all variables
+```
+
+**API Endpoints:**
+```python
+GET  /scsp_info    # Complete constraint system information  
+POST /reason       # Apply SCSP optimization to toxicity labels
+GET  /health       # Service status with constraint count
+```
+
+### Multi-Criteria Scoring
+
+Candidates are ranked using a weighted utility scoring system:
 
 ```python
-# Utility-based voting (primary method)
+# Primary scoring method
 utility_score = (1 - toxicity) * 0.5 + similarity * 0.3 + fluency * 0.2
 
-# Adaptive voting based on original content severity
+# Adaptive weights based on content severity
 if original_toxicity > 0.8:
     weights = {'toxicity': 0.7, 'similarity': 0.2, 'fluency': 0.1}
 elif original_toxicity > 0.5:
     weights = {'toxicity': 0.5, 'similarity': 0.3, 'fluency': 0.2}
 else:
     weights = {'toxicity': 0.3, 'similarity': 0.4, 'fluency': 0.3}
-
-# Ensemble voting: Utility + Borda + Copeland methods
-final_ranking = weighted_voting_score(scores, ['utility', 'borda', 'copeland'])
 ```
 
-Alternative ranking methods available:
-- **Weighted Voting**: Multiple voting strategies
-- **Adaptive Scoring**: Context-dependent weights
-- **Borda Count**: Rank-based voting
-- **Copeland Method**: Pairwise comparisons
+**Scoring Components:**
+- **Toxicity Score**: `(1 - toxicity_level)` - prioritizes non-toxic candidates
+- **Similarity Score**: Semantic similarity to original using Sentence-BERT
+- **Fluency Score**: Language quality based on T5 perplexity
 
 ### Memory Management
 
@@ -351,6 +405,9 @@ curl "http://localhost:8000/system_info"
 
 # System capabilities
 curl "http://localhost:8000/capabilities"
+
+# SCSP constraint information
+curl "http://localhost:8002/scsp_info"
 ```
 
 ### Performance Metrics
@@ -361,6 +418,7 @@ The system provides real-time monitoring of:
 - Model loading status
 - Toxicity reduction effectiveness
 - System resource utilization
+- SCSP constraint violations and optimizations
 
 ## 🔬 Development & Testing
 
@@ -379,9 +437,21 @@ response = requests.post("http://localhost:8000/paraphrase", json={
 result = response.json()
 print(f"Best paraphrase: {result['candidates'][0]['text']}")
 print(f"Toxicity reduction: {result['metadata']['toxicity_reduction']}")
+
+# Test SCSP reasoning
+reasoning_response = requests.post("http://localhost:8002/reason", json={
+    "labels": {
+        "toxicity": 0.95,
+        "severe_toxicity": 0.8,
+        "insult": 0.9,
+        "threat": 0.2
+    }
+})
+
+reasoning_result = reasoning_response.json()
+print(f"Adjusted labels: {reasoning_result['adjusted_labels']}")
+print(f"Explanations: {reasoning_result['explanations']}")
 ```
-
-
 
 ## 🐛 Troubleshooting
 
@@ -402,26 +472,30 @@ print(f"Toxicity reduction: {result['metadata']['toxicity_reduction']}")
 - Check Python version (3.8+ required)
 - Ensure virtual environment is activated
 
+**SCSP Convergence Issues**:
+- Check `/scsp_info` endpoint for constraint details
+- Monitor constraint violations in logs
+- Adjust step_size parameter if needed
+
 ### Logs
 
 ```bash
 # View service logs
 tail -f logs/paraphraser.log
 tail -f logs/classifier.log
+tail -f logs/reasoning.log
 ```
 
 ## 📈 Performance Benchmarks
 
 Typical performance on different systems:
 
-| System | First Request | Subsequent Requests |
-|--------|---------------|-------------------|
-| RTX 4090 | 2-5s | 0.5-1s |
-| RTX 3080 | 3-8s | 1-2s |
-| M1 Mac | 5-10s | 2-3s |
-| CPU (16GB) | 10-30s | 3-6s |
-
-
+| System | First Request | Subsequent Requests | SCSP Optimization |
+|--------|---------------|-------------------|------------------|
+| RTX 4090 | 2-5s | 0.5-1s | 50-100ms |
+| RTX 3080 | 3-8s | 1-2s | 100-200ms |
+| M1 Mac | 5-10s | 2-3s | 150-300ms |
+| CPU (16GB) | 10-30s | 3-6s | 200-500ms |
 
 ## 🤝 Contributing
 
