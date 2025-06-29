@@ -41,6 +41,9 @@ curl -X POST "http://localhost:8000/analyze" \
 
 ### Option 2: Full Frontend (if you have Node.js)
 ```bash
+#start python backend
+python -m uvicorn AI.paraphraser.service:app --port 8000
+
 # Setup and start frontend
 cd frontend
 npm install
