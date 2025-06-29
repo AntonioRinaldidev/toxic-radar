@@ -12,6 +12,47 @@ ToxicRadar is a complete full-stack application that provides intelligent proces
 - **Paraphrasing**: Intelligent text rewriting with multi-criteria ranking using voting theory
 - **Universal Optimization**: Auto-adaptive performance for any hardware (CPU/GPU/MPS)
 
+## 🎓 For Professors/Evaluators (Quick Demo)
+
+### Option 1: Desktop GUI (Recommended)
+```bash
+git clone https://github.com/AntonioRinaldidev/ToxicRadar.git
+cd ToxicRadar
+pip install -r AI/requirements.txt
+python -m AI.gui.ToxicRadarGui
+```
+Analyze and paraphrase a single phrase. If you try to re analyze or re paraphrase the same sentence, it won't work.
+### Option 2: API Demo
+```bash
+# Terminal 1: Start API
+python -m uvicorn AI.paraphraser.service:app --port 8000
+
+# Terminal 2: Test Paraphrasing
+curl -X POST "http://localhost:8000/paraphrase" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "You are such an idiot!"}'
+
+# Terminal 2: Test Analysis Only
+curl -X POST "http://localhost:8000/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "You are such an idiot!"}'
+```
+
+### Option 3: Full Frontend (if you have Node.js)
+```bash
+# Setup and start frontend
+cd frontend
+npm install
+npm run dev
+# Visit http://localhost:3000
+```
+
+**System Requirements:**
+- Python 3.8+ (usually pre-installed)
+- 4GB+ RAM recommended
+- Internet connection (for first model download)
+- Optional: Node.js 18+ for full frontend experience
+
 ### 🌐 Frontend Dashboard
 - **React/Next.js**: Modern, responsive web interface
 - **Real-time Processing**: Live toxicity analysis and paraphrasing
