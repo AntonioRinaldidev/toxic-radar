@@ -3,15 +3,27 @@
 **Intelligent toxicity detection, analysis, and mitigation system using transformer-based models with Soft-CSP reasoning and modern web technologies.**
 ## 🎓 For Professors/Evaluators (Quick Demo)
 
-### Option 1: Desktop GUI 
+## 🚀 Quick Start
+
+### 1. Universal Setup
 ```bash
+# Clone repository
 git clone https://github.com/AntonioRinaldidev/ToxicRadar.git
 cd ToxicRadar
-pip install -r AI/requirements.txt
-python -m AI.gui.ToxicRadarGui
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+venv\Scripts\activate     # Windows
+
+# Run universal setup (auto-detects your system)
+chmod +x AI/universal_startup.sh
+./AI/universal_startup.sh
 ```
-Analyze and paraphrase a single phrase. If you try to re analyze or re paraphrase the same sentence, it won't do it since You already have the process response.
-### Option 2: API Demo (Recommended)
+
+
+### Option 1: API Demo (Recommended)
 ```bash
 # Terminal 1: Start API
 python -m uvicorn AI.paraphraser.service:app --port 8000
@@ -27,7 +39,7 @@ curl -X POST "http://localhost:8000/analyze" \
   -d '{"text": "You are such an idiot!"}'
 ```
 
-### Option 3: Full Frontend (if you have Node.js)
+### Option 2: Full Frontend (if you have Node.js)
 ```bash
 # Setup and start frontend
 cd frontend
