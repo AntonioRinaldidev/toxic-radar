@@ -288,12 +288,12 @@ The system automatically detects and optimizes for:
 
 ## 🧠 Advanced Features
 
-###Soft Constraint Satisfaction Problem (Soft-CSP)
-The reasoning engine uses WeightedSemiring optimization:
+### Advanced Soft Constraint Satisfaction Problem (Soft-CSP)
+The reasoning engine implements a sophisticated WeightedSemiring optimization system with 12 specialized constraints:
 
-
+**Core Architecture:**
 ```python
-# Example from scsp.py
+# WeightedSemiring (ℝ⁺, +, ×, 0, 1) implementation
 class WeightedSemiring:
     @staticmethod
     def combine(a: float, b: float) -> float:
@@ -304,19 +304,6 @@ class WeightedSemiring:
     def aggregate(a: float, b: float) -> float:
         """Aggregate operation (⊗): product of weights"""
         return a * b
-
-# Constraint example: toxicity should match severity of factors
-def create_toxicity_target_constraint(weight: float = 50.0):
-    def cost_fn(assignment):
-        target_toxicity = (
-            threat * 0.35 +      # Threats are very serious
-            identity * 0.30 +    # Identity attacks are hate speech  
-            severe * 0.20 +      # Severe toxicity has high weight
-            insult * 0.10 +      # Insults are less severe
-            obscene * 0.03       # Obscenity is mild
-        )
-        return (actual_toxicity - target_toxicity) ** 2
-```
 
 ### Multi-Criteria Ranking
 
