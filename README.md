@@ -1,17 +1,6 @@
 # ToxicRadar
 
 **Intelligent toxicity detection, analysis, and mitigation system using transformer-based models with Soft-CSP reasoning and modern web technologies.**
-
-## 🎯 Overview
-
-ToxicRadar is a complete full-stack application that provides intelligent processing of toxic language through advanced AI techniques and a modern web interface:
-
-### 🧠 AI Backend
-- **Classification**: Advanced toxicity detection using Detoxify transformer models
-- **Reasoning**: Soft-CSP based logical refinement with WeightedSemiring optimization  
-- **Paraphrasing**: Intelligent text rewriting with multi-criteria ranking using voting theory
-- **Universal Optimization**: Auto-adaptive performance for any hardware (CPU/GPU/MPS)
-
 ## 🎓 For Professors/Evaluators (Quick Demo)
 
 ### Option 1: Desktop GUI 
@@ -52,6 +41,18 @@ npm run dev
 - 4GB+ RAM recommended
 - Internet connection (for first model download)
 - Optional: Node.js 18+ for full frontend experience
+
+
+## 🎯 Overview
+
+ToxicRadar is a complete full-stack application that provides intelligent processing of toxic language through advanced AI techniques and a modern web interface:
+
+### 🧠 AI Backend
+- **Classification**: Advanced toxicity detection using Detoxify transformer models
+- **Reasoning**: Soft-CSP based logical refinement with WeightedSemiring optimization  
+- **Paraphrasing**: Intelligent text rewriting with multi-criteria ranking using voting theory
+- **Universal Optimization**: Auto-adaptive performance for any hardware (CPU/GPU/MPS)
+
 
 ### 🌐 Frontend Dashboard
 - **React/Next.js**: Modern, responsive web interface
