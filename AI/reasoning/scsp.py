@@ -68,7 +68,7 @@ class ToxicitySCSP:
         return total_cost
 
     def solve(self, initial_assignment: Dict[str, float],
-              step_size: float = 0.02,  # CHANGED: Increased from 0.01
+              step_size: float = 0.02,  # Increased from 0.01
               max_iter: int = 1000) -> Dict[str, float]:
         """
         Enhanced Hill Climbing with better exploration and debugging
@@ -177,7 +177,7 @@ def create_severe_toxicity_boost_constraint(weight: float = 200.0) -> WeightedCo
             activation_strength = min(1.0, (insult - 0.01) / 0.15)
 
             target_severe = 0.15 + \
-                (activation_strength * 0.15)  # 15-30% instead of 20-40%
+                (activation_strength * 0.15)
             if severe < target_severe:
                 cost += (target_severe - severe) ** 2 * \
                     150 * activation_strength
