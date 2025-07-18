@@ -52,7 +52,7 @@ npm run dev
 ```
 
 **System Requirements:**
-- Python 3.8+ (usually pre-installed)
+- Python 3.10 
 - 4GB+ RAM recommended
 - Internet connection (for first model download)
 - Optional: Node.js 18+ for full frontend experience
